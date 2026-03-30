@@ -2,16 +2,26 @@
 
 ## Overview
 
-The backend is now fully multi-tenant with hierarchical structure:
+The backend is fully multi-tenant with a hierarchical, website-centric structure:
 
 ```
 TENANT (Organization)
-  ├── BRANDING (tenant-level, admin-only modification)
+  ├── BRANDING (tenant-level, shared across all websites)
   ├── USERS (admin & editor roles)
-  │   ├── Admin: Can manage branding, users, view all projects
-  │   └── Editor: Can only create/view their own projects, generate websites
-  └── PROJECTS (per-user, contain versions)
-      └── VERSIONS (immutable snapshots of generated HTML)
+  │   ├── Admin: Manage branding, users, view all websites, team operations, billing
+  │   └── Editor: Create/view own websites, generate content, manage pages
+  ├── WEBSITES (website projects, identified by slug)
+  │   ├── PAGES (individual pages within a website, e.g., home, about, services)
+  │   ├── VERSIONS (immutable snapshots of generated website HTML)
+  │   ├── CHAT_HISTORY (conversation context during generation)
+  │   └── PROMPT_HISTORY (log of prompts used for generation)
+  ├── SITE_BACKENDS (optional dynamic backend configuration per website)
+  │   ├── API_DEFINITION (auto-generated endpoint schema)
+  │   └── DATA (sample/mock data for endpoints)
+  ├── DEPLOYMENTS (published website instances)
+  │   └── DEPLOYMENT_STATUS (tracks build and deployment steps)
+  ├── ACTIVITY_LOGS (audit trail of user actions)
+  └── INVOICES (billing and subscription records)
 ```
 
 ---
@@ -43,6 +53,24 @@ fonts, logo, images, services
 
 ---
 
+## Key Architectural Changes
+
+### Multi-Tenant Website Model (Updated)
+- Project entities have been replaced with **Website** entities for clearer naming.
+- Each Website can contain multiple **Page** entities (e.g., home, about, services).
+- Websites support full version history and incremental updates via chat-driven generation.
+- Dynamic backends are optional and generated on-demand via **SiteBackend** entities.
+- Deployments are tracked independently with status and history.
+
+### Enhanced Feature Support
+- **Chat-based Generation**: Conversation history is persisted per website, enabling contextual prompts.
+- **Page-level Management**: Pages have independent component trees, versioning, and SEO metadata.
+- **Dynamic Backends**: Auto-generated API schemas with sample data, deployable via Docker bundle.
+- **Deployment Tracking**: Detailed deployment status, logs, and rollback capability.
+- **Activity Auditing**: All user actions logged for compliance and analytics.
+
+---
+
 ## Database Schemas
 
 ### Tenant
@@ -55,6 +83,19 @@ fonts, logo, images, services
   logo: String,              // Cloudinary URL
   ownerUserId: ObjectId,     // ref: User (first admin)
   status: 'active' | 'inactive',
+  plan: 'free' | 'starter' | 'professional' | 'enterprise',
+  limits: {
+    websites: Number,        // -1 means unlimited
+    pages: Number,
+    aiGenerations: Number,
+    teamMembers: Number
+  },
+  usage: {
+    websites: Number,
+    pages: Number,
+    aiGenerations: Number,
+    teamMembers: Number
+  },
   createdAt, updatedAt
 }
 ```
@@ -64,11 +105,12 @@ fonts, logo, images, services
 {
   _id: ObjectId,
   name: String,              // "John Doe"
-  email: String,             // "john@acme.com" (unique per tenant)
+  email: String,             // unique per tenant
   password: String,          // bcrypt hashed
-  tenantId: ObjectId,        // ref: Tenant (required)
+  tenant: ObjectId,          // ref: Tenant (required)
   role: 'editor' | 'admin',  // default: 'editor'
   avatar: String,
+  status: 'active' | 'invited',
   createdAt, updatedAt
 }
 ```
@@ -85,52 +127,172 @@ fonts, logo, images, services
   primaryColor: String,      // "#8b5cf6"
   secondaryColor: String,    // "#6d28d9"
   accentColor: String,       // "#06b6d4"
-  backgroundColor: String,   // "#1a1a2e"
+  backgroundColor: String,   // "#ffffff"
+  bgColor: String,           // alias for backgroundColor
+  textColor: String,         // "#1f2937"
   fontHeading: String,       // "Outfit"
   fontBody: String,          // "Inter"
   images: [
     { url: String, alt: String, uploadedAt: Date }
   ],
   services: [
-    { name: String, description: String, price: Number, icon: String }
+    { 
+      _id: ObjectId,
+      name: String, 
+      description: String, 
+      price: Number, 
+      icon: String 
+    }
   ],
   createdAt, updatedAt
 }
 ```
 
-### Project
+### Website
 ```javascript
 {
   _id: ObjectId,
-  tenantId: ObjectId,        // ref: Tenant (required)
-  userId: ObjectId,          // ref: User (project owner)
-  name: String,              // "E-Commerce Store"
+  name: String,              // "Portfolio Site"
+  slug: String,              // "portfolio-site" (unique per tenant)
   description: String,
-  activeVersionId: ObjectId, // ref: VersionHistory
+  businessType: String,      // "portfolio", "ecommerce", "saas", etc.
+  tenant: ObjectId,          // ref: Tenant (required)
+  owner: ObjectId,           // ref: User (creator)
+  generatedHTML: String,     // Current/active generated HTML
+  currentVersion: Number,    // Version counter
   status: 'draft' | 'published',
+  chatHistory: [
+    { role: 'user' | 'ai', content: String, ts: Number }
+  ],
+  promptHistory: [
+    { prompt: String }
+  ],
+  versions: [
+    {
+      version: Number,
+      html: String,
+      prompt: String,
+      label: String,
+      createdAt: Date
+    }
+  ],
   createdAt, updatedAt
 }
 ```
 
-### VersionHistory
+### Page
 ```javascript
 {
   _id: ObjectId,
-  tenantId: ObjectId,        // ref: Tenant
-  projectId: ObjectId,       // ref: Project
-  userId: ObjectId,          // ref: User (who generated)
-  versionNumber: Number,     // 1, 2, 3...
-  userPrompt: String,        // "Build a SaaS landing page..."
-  htmlCode: String,          // Complete HTML/CSS/JS
-  brandingSnapshot: {
-    companyName: String,
-    logo: String,
-    primaryColor, secondaryColor, accentColor, fontHeading, fontBody,
-    services: [{ name, description, price }],
-    images: [String]         // URLs
+  title: String,             // "Home", "About", "Services"
+  slug: String,              // "home", "about", "services"
+  website: ObjectId,         // ref: Website (required)
+  tenant: ObjectId,          // ref: Tenant (required)
+  components: [Object],      // Component tree definitions
+  generatedHTML: String,     // Rendered HTML for the page
+  version: Number,           // Page version counter
+  status: 'draft' | 'published',
+  seo: {
+    title: String,
+    description: String,
+    keywords: String
   },
-  status: 'active' | 'inactive',
-  createdAt
+  versions: [
+    {
+      version: Number,
+      components: [Object],
+      generatedHTML: String,
+      createdBy: ObjectId,   // ref: User
+      message: String,
+      createdAt: Date
+    }
+  ],
+  createdAt, updatedAt
+}
+```
+
+### SiteBackend
+```javascript
+{
+  _id: ObjectId,
+  website: ObjectId,         // ref: Website (required, unique)
+  tenant: ObjectId,          // ref: Tenant (required)
+  status: 'idle' | 'generating' | 'active' | 'error',
+  apiDefinition: {
+    endpoints: [
+      {
+        path: String,        // "/products"
+        method: String,      // "GET", "POST", "PUT", "DELETE"
+        description: String,
+        fields: [String],
+        sampleData: [Object]
+      }
+    ],
+    collections: [String]    // ["products", "orders"]
+  },
+  data: Object,              // { products: [...], orders: [...] }
+  apiBaseUrl: String,        // Base URL for generated APIs
+  lastGenerated: Date,
+  createdAt, updatedAt
+}
+```
+
+### Deployment
+```javascript
+{
+  _id: ObjectId,
+  website: ObjectId,         // ref: Website (required)
+  tenant: ObjectId,          // ref: Tenant (required)
+  deployedBy: ObjectId,      // ref: User
+  version: Number,           // Website version deployed
+  environment: String,       // "production", "staging"
+  status: 'pending' | 'building' | 'live' | 'failed',
+  url: String,               // Public deployment URL
+  changelog: String,         // Release notes
+  buildTime: Number,         // Duration in seconds
+  rollbackFrom: Number,      // Previous version if this is a rollback
+  createdAt, updatedAt
+}
+```
+
+### ActivityLog
+```javascript
+{
+  _id: ObjectId,
+  user: {
+    id: ObjectId,
+    name: String,
+    email: String
+  },
+  tenant: ObjectId,          // ref: Tenant
+  action: String,            // "website.create", "ai.generate", "deploy.create"
+  entityType: String,        // "website", "page", "deployment", "billing"
+  entityId: ObjectId,        // ref to the entity being acted upon
+  details: Object,           // Additional context
+  ipAddress: String,
+  createdAt: Date
+}
+```
+
+### Invoice
+```javascript
+{
+  _id: ObjectId,
+  tenant: ObjectId,          // ref: Tenant
+  amount: Number,
+  plan: String,              // "free", "starter", "professional", "enterprise"
+  status: 'pending' | 'paid' | 'failed',
+  description: String,
+  period: {
+    start: Date,
+    end: Date
+  },
+  paymentMethod: {
+    type: String,            // "card", "invoice"
+    last4: String,
+    brand: String
+  },
+  createdAt: Date
 }
 ```
 
@@ -145,7 +307,7 @@ fonts, logo, images, services
 | `POST` | `/api/auth/login` | `{email, password}` | — | Login → returns JWT + tenant info |
 | `GET` | `/api/auth/me` | — | ✓ | Get current user + tenant |
 
-**Response Example:**
+**Example Response:**
 ```json
 {
   "ok": true,
@@ -157,57 +319,127 @@ fonts, logo, images, services
 
 ---
 
-### Tenant Management
+### Websites
 | Method | Endpoint | Body | Auth | Role | Description |
 |--------|----------|------|------|------|-------------|
-| `GET` | `/api/tenants/:tenantId` | — | ✓ | any | Get tenant details |
-| `PUT` | `/api/tenants/:tenantId` | `{name?, description?, logo?}` | ✓ | admin | Update tenant |
+| `GET` | `/api/websites` | — | ✓ | any | List tenant's websites |
+| `POST` | `/api/websites` | `{name, description?, businessType?}` | ✓ | any | Create website |
+| `GET` | `/api/websites/:id` | — | ✓ | any | Get website details |
+| `PUT` | `/api/websites/:id` | `{name?, description?, status?}` | ✓ | owner/admin | Update website |
+| `DELETE` | `/api/websites/:id` | — | ✓ | owner/admin | Delete website |
+| `GET` | `/api/websites/:id/chat` | — | ✓ | owner/admin | Get chat & prompt history |
+| `GET` | `/api/websites/:id/versions` | — | ✓ | owner/admin | List all versions |
+| `POST` | `/api/websites/:id/versions/:version/restore` | — | ✓ | owner/admin | Restore previous version |
+| `GET` | `/api/websites/view/:slug` | — | — | — | View published website (public) |
 
 ---
 
-### User Management (Admin-Only)
+### Pages
 | Method | Endpoint | Body | Auth | Role | Description |
 |--------|----------|------|------|------|-------------|
-| `GET` | `/api/tenants/:tenantId/users` | — | ✓ | admin | List all users in tenant |
-| `POST` | `/api/tenants/:tenantId/users` | `{name, email, password, role}` | ✓ | admin | Create new user |
-| `PUT` | `/api/tenants/:tenantId/users/:userId` | `{name?, email?, role?}` | ✓ | admin | Update user |
-| `DELETE` | `/api/tenants/:tenantId/users/:userId` | — | ✓ | admin | Remove user (not last admin) |
+| `GET` | `/api/pages` | — | ✓ | any | List pages (filter by websiteId) |
+| `POST` | `/api/pages` | `{title, websiteId, components?, generatedHTML?}` | ✓ | any | Create page |
+| `GET` | `/api/pages/:id` | — | ✓ | any | Get page details |
+| `PUT` | `/api/pages/:id` | `{title?, components?, generatedHTML?, status?, seo?}` | ✓ | owner/admin | Update page with versioning |
+| `DELETE` | `/api/pages/:id` | — | ✓ | owner/admin | Delete page |
 
 ---
 
-### Projects
+### AI Generation
 | Method | Endpoint | Body | Auth | Role | Description |
 |--------|----------|------|------|------|-------------|
-| `GET` | `/api/projects/:tenantId` | — | ✓ | any | List user's projects |
-| `POST` | `/api/projects/:tenantId` | `{name, description?}` | ✓ | any | Create project |
-| `GET` | `/api/projects/:tenantId/:projectId` | — | ✓ | owner/admin | Get project |
-| `PUT` | `/api/projects/:tenantId/:projectId` | `{name?, description?, status?}` | ✓ | owner/admin | Update project |
-| `DELETE` | `/api/projects/:tenantId/:projectId` | — | ✓ | owner/admin | Delete project |
-| `POST` | `/api/projects/:tenantId/:projectId/generate` | `{prompt}` | ✓ | owner/admin | **Generate website via AI** |
-| `GET` | `/api/projects/:tenantId/:projectId/versions` | — | ✓ | owner/admin | List versions |
-| `PUT` | `/api/projects/:tenantId/:projectId/versions/:versionId/rollback` | — | ✓ | owner/admin | Set version as active |
+| `POST` | `/api/ai/generate` | `{prompt, websiteId?, previousHtml?}` | ✓ | any | Generate website HTML via Gemini |
+
+**Response includes version number, generated HTML, and generation metadata.**
 
 ---
 
-### Branding (Tenant-Level, Admin-Only)
+### Dynamic Backends (SiteBackends)
+| Method | Endpoint | Body | Auth | Description |
+|--------|----------|------|------|-------------|
+| `GET` | `/api/site-backends/:websiteId` | — | ✓ | Get backend schema and data |
+| `POST` | `/api/site-backends/:websiteId/generate` | — | ✓ | Generate backend from HTML |
+| `PUT` | `/api/site-backends/:websiteId/data/:collection` | `{data: [...]}` | ✓ | Update collection data |
+| `GET` | `/api/site-backends/public/:websiteId/:endpoint` | — | — | Fetch data (public) |
+| `POST` | `/api/site-backends/public/:websiteId/:endpoint` | `{...fields}` | — | Submit data (public) |
+
+---
+
+### Deployments
+| Method | Endpoint | Body | Auth | Role | Description |
+|--------|----------|------|------|------|-------------|
+| `GET` | `/api/deploy` | — | ✓ | any | List deployments (filter by websiteId) |
+| `POST` | `/api/deploy` | `{websiteId, environment, changelog}` | ✓ | any | Create deployment |
+| `GET` | `/api/deploy/:id/stream` | — | ✓ | — | Stream deployment progress (SSE) |
+| `POST` | `/api/deploy/:id/rollback` | — | ✓ | any | Rollback to previous version |
+
+---
+
+### Export
+| Method | Endpoint | Query | Auth | Description |
+|--------|----------|-------|------|-------------|
+| `GET` | `/api/export/:websiteId/docker` | — | ✓ | Download Docker bundle |
+
+**Returns a ZIP file containing HTML, backend schema, server.js, Dockerfile, and dependencies.**
+
+---
+
+### Branding (Tenant-Level)
 | Method | Endpoint | Body/Form | Auth | Role | Description |
 |--------|----------|-----------|------|------|-------------|
-| `GET` | `/api/branding/:tenantId` | — | ✓ | any | Get branding |
-| `PUT` | `/api/branding/:tenantId` | `{companyName?, primaryColor?, ...}` | ✓ | admin | Update branding |
-| `POST` | `/api/branding/:tenantId/upload-logo` | `file` | ✓ | admin | Upload logo |
-| `POST` | `/api/branding/:tenantId/upload-image` | `file, alt?` | ✓ | admin | Add gallery image |
-| `DELETE` | `/api/branding/:tenantId/images/:imageId` | — | ✓ | admin | Remove image |
-| `POST` | `/api/branding/:tenantId/services` | `{name, description?, price?, icon?}` | ✓ | admin | Add service |
-| `PUT` | `/api/branding/:tenantId/services/:serviceId` | `{name?, price?, ...}` | ✓ | admin | Update service |
-| `DELETE` | `/api/branding/:tenantId/services/:serviceId` | — | ✓ | admin | Delete service |
+| `GET` | `/api/branding/:tenantId` | — | ✓ | any | Get tenant branding |
+| `PUT` | `/api/branding/:tenantId` | `{companyName?, colors?, fonts?}` | ✓ | editor | Update branding |
+| `POST` | `/api/branding/:tenantId/upload-logo` | `file` | ✓ | editor | Upload logo |
+| `POST` | `/api/branding/:tenantId/upload-image` | `file, alt?` | ✓ | editor | Add gallery image |
+| `DELETE` | `/api/branding/:tenantId/images/:imageId` | — | ✓ | editor | Remove image |
+| `POST` | `/api/branding/:tenantId/services` | `{name, description?, price?, icon?}` | ✓ | editor | Add service |
+| `PUT` | `/api/branding/:tenantId/services/:serviceId` | `{name?, price?, ...}` | ✓ | editor | Update service |
+| `DELETE` | `/api/branding/:tenantId/services/:serviceId` | — | ✓ | editor | Delete service |
+
+---
+
+### Team
+| Method | Endpoint | Body | Auth | Role | Description |
+|--------|----------|------|------|------|-------------|
+| `GET` | `/api/team` | — | ✓ | any | List team members |
+| `POST` | `/api/team/invite` | `{name, email, role}` | ✓ | admin | Invite team member |
+| `PUT` | `/api/team/:id/role` | `{role}` | ✓ | admin | Change user role |
+| `DELETE` | `/api/team/:id` | — | ✓ | admin | Remove team member |
+| `GET` | `/api/team/permissions` | — | ✓ | any | Get user permissions |
+
+---
+
+### Analytics
+| Method | Endpoint | Query | Auth | Role | Description |
+|--------|----------|-------|------|------|-------------|
+| `GET` | `/api/analytics` | — | ✓ | any | Get tenant metrics and traffic |
+| `GET` | `/api/analytics/logs` | `page, limit, action, entityType` | ✓ | any | List activity logs |
+
+---
+
+### Billing
+| Method | Endpoint | Body | Auth | Role | Description |
+|--------|----------|------|------|------|-------------|
+| `GET` | `/api/billing` | — | ✓ | any | Get plan, limits, usage, invoices |
+| `POST` | `/api/billing/change-plan` | `{plan}` | ✓ | admin | Change subscription plan |
+
+**Plans:** free, starter, professional, enterprise
+**Limits:** websites, pages, aiGenerations, teamMembers (-1 = unlimited)
+
+---
+
+### Health
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `GET` | `/api/health` | — | Server health check |
 
 ---
 
 ## JWT Token Payload
 ```javascript
 {
-  userId: ObjectId,
-  tenantId: ObjectId,
+  userId: String,            // User ObjectId as string
+  tenantId: String,          // Tenant ObjectId as string
   role: 'admin' | 'editor',
   iat: timestamp,
   exp: timestamp (7 days)
@@ -216,19 +448,37 @@ fonts, logo, images, services
 
 ---
 
-## Frontend Axios Usage
+## Access Control Summary
 
-### Import Services
-```javascript
-import { registerTenant, loginUser, getMe } from '@/services/authService';
-import { getProjects, createProject, generateWebsite } from '@/services/projectService';
-import { getBranding, updateBranding, uploadLogo, addService } from '@/services/brandingService';
-import { getTenant, updateTenant } from '@/services/tenantService';
-import { listUsers, inviteUser } from '@/services/userService';
-```
+| Action | Editor | Admin |
+|--------|--------|-------|
+| View own websites | ✓ | ✓ |
+| Create websites | ✓ | ✓ |
+| Generate HTML via AI | ✓ | ✓ |
+| Manage pages | ✓ | ✓ |
+| Generate dynamic backend | ✓ | ✓ |
+| View branding | ✓ | ✓ |
+| Modify branding | ✓ | ✓ |
+| Upload logos/images | ✓ | ✓ |
+| Manage services | ✓ | ✓ |
+| Deploy websites | ✓ | ✓ |
+| View all websites | ✗ | ✓ |
+| View team members | ✓ | ✓ |
+| Invite team members | ✗ | ✓ |
+| Remove team members | ✗ | ✓ |
+| Change user roles | ✗ | ✓ |
+| View billing/invoices | ✗ | ✓ |
+| Change subscription plan | ✗ | ✓ |
 
-### Registration Flow
+---
+
+## Frontend Integration Patterns
+
+### Authentication Flow
 ```javascript
+import { loginUser, registerTenant } from '@/services/authService';
+
+// Register new tenant
 const response = await registerTenant(
   'Acme Corp',           // tenantName
   'acme-corp',           // tenantSlug
@@ -240,64 +490,197 @@ const { token, user, tenant } = response.data;
 localStorage.setItem('authToken', token);
 localStorage.setItem('tenantId', tenant.id);
 localStorage.setItem('user', JSON.stringify(user));
+
+// Or login existing user
+const loginResp = await loginUser('john@acme.com', 'password123');
+// Same storage pattern as above
 ```
 
-### Login Flow
+### Website Creation and Generation
 ```javascript
-const response = await loginUser('john@acme.com', 'password123');
-const { token, user, tenant } = response.data;
-localStorage.setItem('authToken', token);
-localStorage.setItem('tenantId', tenant.id);
-localStorage.setItem('user', JSON.stringify(user));
+// 1. Create website
+const createResp = await apiClient.post('/websites', {
+  name: 'My Online Store',
+  description: 'E-commerce platform',
+  businessType: 'ecommerce'
+});
+const websiteId = createResp.data.data._id;
+
+// 2. Generate website via AI
+const genResp = await apiClient.post('/ai/generate', {
+  prompt: 'Build a modern e-commerce website with products, cart, and checkout',
+  websiteId: websiteId
+});
+const htmlCode = genResp.data.version.htmlCode;
+
+// 3. View versions
+const versResp = await apiClient.get(`/websites/${websiteId}/versions`);
+const versions = versResp.data.data;
+
+// 4. Restore previous version
+await apiClient.post(`/websites/${websiteId}/versions/1/restore`);
 ```
 
-### Get Projects (with tenantId)
+### Page Management
 ```javascript
-const tenantId = localStorage.getItem('tenantId');
-const response = await getProjects(tenantId);
-const projects = response.data.projects;
-```
+// Create page
+const pageResp = await apiClient.post('/pages', {
+  title: 'About Us',
+  websiteId: websiteId,
+  components: [
+    { type: 'hero', props: { title: 'Our Story' } }
+  ],
+  generatedHTML: '<html>...</html>'
+});
 
-### Generate Website
-```javascript
-const response = await generateWebsite(
-  tenantId,
-  projectId,
-  'Build a modern e-commerce store...'
-);
-const htmlCode = response.data.version.htmlCode;
-```
-
-### Update Branding (Admin Only)
-```javascript
-await updateBranding(tenantId, {
-  companyName: 'Acme Corp',
-  primaryColor: '#ff0000'
+// Update page with versioning
+await apiClient.put(`/pages/${pageId}`, {
+  title: 'About Us - Updated',
+  components: [...],
+  status: 'published',
+  seo: {
+    title: 'About Our Company',
+    description: 'Learn about us'
+  },
+  versionMessage: 'Updated copy and structure'
 });
 ```
 
-### Create User (Admin Only)
+### Dynamic Backend Generation
 ```javascript
-await inviteUser(tenantId, 'Jane', 'jane@acme.com', 'pass123', 'editor');
+// Generate backend from frontend
+const backendResp = await apiClient.post(`/site-backends/${websiteId}/generate`);
+const apiDef = backendResp.data.data.apiDefinition;
+
+// Update collection data
+await apiClient.put(`/site-backends/${websiteId}/data/products`, {
+  data: [
+    { _id: '1', name: 'Product A', price: 99 },
+    { _id: '2', name: 'Product B', price: 199 }
+  ]
+});
+
+// Websites can fetch public data client-side
+const productsResp = await fetch(
+  '/api/site-backends/public/${websiteId}/products'
+);
+const products = await productsResp.json();
+```
+
+### Deployment Workflow
+```javascript
+// Create deployment
+const deployResp = await apiClient.post('/deploy', {
+  websiteId: websiteId,
+  environment: 'production',
+  changelog: 'Updated homepage with new hero section'
+});
+const deploymentId = deployResp.data.data._id;
+
+// Stream deployment progress
+const eventSource = new EventSource(
+  `/api/deploy/${deploymentId}/stream`
+);
+eventSource.onmessage = (event) => {
+  const { type, state } = JSON.parse(event.data);
+  console.log(`Status: ${state.status}`);
+};
+
+// Rollback if needed
+await apiClient.post(`/deploy/${deploymentId}/rollback`);
+```
+
+### Export Docker Bundle
+```javascript
+// Download Docker bundle for local deployment
+const token = localStorage.getItem('authToken');
+const downloadUrl = `
+  /api/export/${websiteId}/docker?token=${token}
+`;
+window.location.href = downloadUrl;
+
+// User receives a ZIP containing:
+// - public/index.html (generated website)
+// - database.json (backend schema and sample data)
+// - server.js (Express server)
+// - Dockerfile
+// - package.json
+```
+
+### Team & Permissions
+```javascript
+// List team members
+const teamResp = await apiClient.get('/team');
+const members = teamResp.data.data.members;
+
+// Invite new member
+await apiClient.post('/team/invite', {
+  name: 'Jane Smith',
+  email: 'jane@acme.com',
+  role: 'editor'
+});
+
+// Change role
+await apiClient.put('/team/{userId}/role', { role: 'admin' });
+
+// Get current user's permissions
+const permResp = await apiClient.get('/team/permissions');
+const permissions = permResp.data.data.permissions;
 ```
 
 ---
 
-## Access Control Summary
+## Rate Limiting & Quotas
 
-| Action | Editor | Admin |
-|--------|--------|-------|
-| View own projects | ✓ | ✓ |
-| Create projects | ✓ | ✓ |
-| Generate websites | ✓ | ✓ |
-| View branding | ✓ | ✓ |
-| Modify branding | ✗ | ✓ |
-| Upload logo/images | ✗ | ✓ |
-| Manage services | ✗ | ✓ |
-| View all projects | ✗ | ✓ |
-| Create users | ✗ | ✓ |
-| Delete users | ✗ | ✓ |
-| Update tenant | ✗ | ✓ |
+### Plan Limits
+- **Free**: 5 websites, 25 pages, 50 AI generations, 1 team member
+- **Starter**: 25 websites, 250 pages, 500 AI generations, 5 team members
+- **Professional**: 100 websites, 1000 pages, 2000 AI generations, 10 team members
+- **Enterprise**: Unlimited
+
+### Enforcement
+- Tenant limits are checked before each create operation.
+- Usage counters are incremented on successful operations.
+- Quota overflow returns HTTP 403 with upgrade suggestion.
+
+---
+
+## Key Implementation Notes
+
+1. **Multi-Tenancy**: All queries filter by `tenant` or `tenantId` to ensure data isolation.
+2. **Versioning**: Website and page changes create immutable version records.
+3. **Chat Context**: Chat history is persisted to enable contextual AI refinement.
+4. **Dynamic Backends**: Generated from website HTML via Groq-powered schema analysis.
+5. **Activity Auditing**: All actions logged for compliance and analytics.
+6. **Deployment Pipeline**: Simulated build process with step-by-step progress streaming.
+7. **Export Capability**: Docker bundles are self-contained and portable.
+
+---
+
+## Frontend Axios Usage
+
+### Import Services
+```javascript
+import apiClient from '@/services/apiClient';
+import { loginUser, registerTenant, getMe } from '@/services/authService';
+import { fetchWebsites, createWebsite, generateAIWebsite } from '@/services/api';
+import { getBranding, updateBranding } from '@/services/brandingService';
+```
+
+---
+
+## Production Deployment Checklist
+
+- [ ] Update `JWT_SECRET` to strong random value
+- [ ] Use MongoDB Atlas (not local)
+- [ ] Configure environment variables: MONGO_URI, GEMINI_API_KEY, CLOUDINARY_*, JWT_SECRET
+- [ ] Enable HTTPS on frontend and backend
+- [ ] Set appropriate CORS origin
+- [ ] Configure rate limiting on API
+- [ ] Set up error logging and monitoring
+- [ ] Enable database backups
+- [ ] Test deployment export and Docker build process
+- [ ] Configure webhook URL for N8N deployment integration
 
 ---
 
