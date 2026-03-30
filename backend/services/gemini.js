@@ -122,7 +122,7 @@ ${previousVersionContext}
 ${userPrompt}`;
 
   try {
-    const model = client.getGenerativeModel({ model: 'gemini-3-flash-preview' });
+    const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
     const result = await model.generateContent(systemPrompt);
     let html = result.response.text();
 

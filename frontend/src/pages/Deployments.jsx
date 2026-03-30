@@ -11,7 +11,7 @@ export default function DeploymentsPage() {
     useEffect(() => {
         async function init() {
             const u = await fetchCurrentUser();
-            const w = fetchWebsites();
+            const w = await fetchWebsites();
             setUser(u.user);
             setWebsites(w.websites || []);
             setLoading(false);
@@ -19,13 +19,14 @@ export default function DeploymentsPage() {
         init();
     }, []);
 
-    function handleDeploy(siteId) {
+    async function handleDeploy(siteId) {
         setDeploying(siteId);
-        deployWebsite(siteId);
+        await deployWebsite(siteId);
         setTimeout(() => {
-            const w = fetchWebsites();
-            setWebsites(w.websites || []);
-            setDeploying(null);
+            fetchWebsites().then((w) => {
+                setWebsites(w.websites || []);
+                setDeploying(null);
+            });
         }, 2000);
     }
 

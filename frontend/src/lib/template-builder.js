@@ -465,6 +465,7 @@ export function compilePayload({ mode, templateId, selections, userPrompt }) {
       mode: 'prebuilt',
       templateId,
       templateName: `${template.name} — ${template.subtitle}`,
+      userPrompt: prompt,
     };
   }
 
@@ -526,6 +527,7 @@ export function compilePayload({ mode, templateId, selections, userPrompt }) {
       mode: 'custom',
       selections,
       templateName: `Custom Build (${selectedNames})`,
+      userPrompt: prompt,
     };
   }
 
@@ -537,5 +539,6 @@ function _plainPayload(prompt) {
     enhancedPrompt: `${BASE_REQUIREMENTS}\n\n╔══════════════════════════════════════════════════════════╗\n║  USER'S WEBSITE REQUEST                                  ║\n╚══════════════════════════════════════════════════════════╝\n${prompt}`,
     mode: 'plain',
     templateName: null,
+    userPrompt: prompt,
   };
 }

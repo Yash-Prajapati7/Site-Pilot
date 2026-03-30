@@ -10,6 +10,15 @@ import projectRoutes  from './routes/projects.js';
 import brandingRoutes from './routes/branding.js';
 import tenantRoutes   from './routes/tenants.js';
 import userRoutes     from './routes/users.js';
+import websitesRoutes from './routes/websites.js';
+import pagesRoutes from './routes/pages.js';
+import siteBackendsRoutes from './routes/siteBackends.js';
+import aiRoutes from './routes/ai.js';
+import deployRoutes from './routes/deploy.js';
+import billingRoutes from './routes/billing.js';
+import analyticsRoutes from './routes/analytics.js';
+import teamRoutes from './routes/team.js';
+import exportRoutes from './routes/export.js';
 
 // ── Connect to MongoDB ───────────────────────────────────────────────────────
 await connectDB();
@@ -38,6 +47,15 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/branding', upload.single('file'), brandingRoutes);
 app.use('/api/tenants',  tenantRoutes);
 app.use('/api/tenants',  userRoutes);
+app.use('/api/websites', websitesRoutes);
+app.use('/api/pages', pagesRoutes);
+app.use('/api/site-backends', siteBackendsRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/deploy', deployRoutes);
+app.use('/api/billing', billingRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/team', teamRoutes);
+app.use('/api/export', exportRoutes);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {

@@ -4,7 +4,7 @@
  * Pages that previously called these synchronously must now await them.
  */
 
-import http from '../lib/http';
+import apiClient from './apiClient';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -81,6 +81,8 @@ function normalizeProject(proj) {
   if (!proj) return null;
   const id = String(proj._id || proj.id);
   const slug = proj.name?.toLowerCase().replace(/\s+/g, '-') || id;
+  // If we have generatedHTML, construct a fake activeVersion to match Builder's expectations
+  const hasHTML = proj.generatedHTML && proj.generatedHTML.length > 0;
   return {
     id,
     _id: id,
@@ -90,25 +92,23 @@ function normalizeProject(proj) {
     slug,
     domain: {
       subdomain: `${slug}.sitepilot.app`,
-      custom:    null,
-      verified:  false,
-      ssl:       false,
+      custom: null,
+      verified: false,
+      ssl: false,
     },
     settings: {
       favicon: '',
       seo: { title: proj.name, description: proj.description || '' },
     },
-    // Show 1 "page" when a version exists
-    pageCount: proj.activeVersionId ? 1 : 0,
-    createdAt:       proj.createdAt,
-    updatedAt:       proj.updatedAt,
-    publishedAt:     proj.publishedAt || null,
-    activeVersionId: proj.activeVersionId,
-    // Populated version document (if present)
-    activeVersion:
-      proj.activeVersionId && typeof proj.activeVersionId === 'object'
-        ? proj.activeVersionId
-        : null,
+    pageCount: hasHTML ? 1 : 0,
+    createdAt: proj.createdAt,
+    updatedAt: proj.updatedAt,
+    publishedAt: proj.publishedAt || null,
+    activeVersionId: hasHTML ? proj.currentVersion : null,
+    activeVersion: hasHTML ? {
+      versionNumber: proj.currentVersion || 1,
+      htmlCode: proj.generatedHTML
+    } : null,
   };
 }
 
@@ -122,8 +122,14 @@ function normalizeProject(proj) {
 export async function loginUser(email, password) {
   if (!email || !password) return { ok: false, error: 'Email and password are required' };
   try {
-    const { data } = await http.post('/auth/login', { email, password });
-    return { ok: true, user: data.user, tenant: data.tenant, token: data.token };
+    const { data: resData } = await apiClient.post('/auth/login', { email, password });
+    const payload = resData?.data ?? resData;
+    const user = {
+      ...payload.user,
+      tenantId: String(payload.tenant?._id || payload.tenant?.id),
+      tenant: payload.tenant
+    };
+    return { ok: true, user, tenant: payload.tenant, token: payload.token };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Login failed' };
   }
@@ -133,16 +139,23 @@ export async function loginUser(email, password) {
  * Register a new tenant + owner account.
  * Returns { ok, user, tenant, token } or { ok: false, error }.
  */
-export async function registerTenant({ name, slug, ownerName, ownerEmail, ownerPassword }) {
+export async function registerTenant({ ownerName, ownerEmail, password, ownerPassword, tenantName, slug, plan }) {
   try {
-    const { data } = await http.post('/auth/register', {
-      tenantName:  name,
-      tenantSlug:  slug || name.toLowerCase().replace(/\s+/g, '-'),
+    const { data: resData } = await apiClient.post('/auth/register', {
+      tenantName,
+      tenantSlug: slug || tenantName.toLowerCase().replace(/\s+/g, '-'),
       ownerName,
       ownerEmail,
-      password:    ownerPassword || 'demo123',
+      password: password || ownerPassword || 'demo123',
+      plan: plan || 'free',
     });
-    return { ok: true, user: data.user, tenant: data.tenant, token: data.token };
+    const payload = resData?.data ?? resData;
+    const user = {
+      ...payload.user,
+      tenantId: String(payload.tenant?._id || payload.tenant?.id),
+      tenant: payload.tenant
+    };
+    return { ok: true, user, tenant: payload.tenant, token: payload.token };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Registration failed' };
   }
@@ -161,19 +174,20 @@ export function logoutUser() {
  */
 export async function fetchCurrentUser() {
   try {
-    const { data } = await http.get('/auth/me');
+    const { data: resData } = await apiClient.get('/auth/me');
+    const payload = resData?.data ?? resData;
     // Attach tenant data onto user so existing pages can read user.tenant
     const user = {
-      ...data.user,
-      id:       String(data.user.id || data.user._id),
-      tenantId: String(data.user.tenantId),
-      tenant:   {
-        ...data.tenant,
-        id:   String(data.tenant.id || data.tenant._id),
+      ...payload.user,
+      id: String(payload.user.id || payload.user._id),
+      tenantId: String(payload.tenant?._id || payload.tenant?.id),
+      tenant: {
+        ...payload.tenant,
+        id: String(payload.tenant?.id || payload.tenant?._id),
         // Provide sensible defaults for fields used by Dashboard.jsx
         planLimits: { websites: 10, pages: 50, storage: 1024, ai: 100, domains: 5 },
-        usage:      { aiGenerations: 0, storage: 0, bandwidth: 0 },
-        members:    [],
+        usage: { aiGenerations: 0, storage: 0, bandwidth: 0 },
+        members: [],
       },
     };
     return { user };
@@ -189,10 +203,10 @@ export async function fetchWebsites() {
   const tenantId = getTenantId();
   if (!tenantId) return { websites: [], error: 'Unauthorized' };
   try {
-    const { data } = await http.get(`/projects/${tenantId}`);
-    return { websites: (data.projects || []).map(normalizeProject) };
+    const { data: resData } = await apiClient.get(`/websites`);
+    return { websites: (resData.data || []).map(normalizeProject) };
   } catch (err) {
-    return { websites: [], error: err.response?.data?.error || 'Failed to load projects' };
+    return { websites: [], error: err.response?.data?.error || 'Failed to load websites' };
   }
 }
 
@@ -201,8 +215,8 @@ export async function fetchWebsite(projectId) {
   const tenantId = getTenantId();
   if (!tenantId) return { website: null };
   try {
-    const { data } = await http.get(`/projects/${tenantId}/${projectId}`);
-    return { website: normalizeProject(data.project) };
+    const { data: resData } = await apiClient.get(`/websites/${projectId}`);
+    return { website: normalizeProject(resData.data) };
   } catch {
     return { website: null };
   }
@@ -213,10 +227,10 @@ export async function createWebsite({ name, description = '' }) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   try {
-    const { data } = await http.post(`/projects/${tenantId}`, { name, description });
-    return { ok: true, website: normalizeProject(data.project) };
+    const { data: resData } = await apiClient.post(`/websites`, { name, description, businessType: 'general' });
+    return { ok: true, website: normalizeProject(resData.data) };
   } catch (err) {
-    return { ok: false, error: err.response?.data?.error || 'Failed to create project' };
+    return { ok: false, error: err.response?.data?.error || 'Failed to create website' };
   }
 }
 
@@ -225,8 +239,8 @@ export async function modifyWebsite(id, updates) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   try {
-    const { data } = await http.put(`/projects/${tenantId}/${id}`, updates);
-    return { ok: true, website: normalizeProject(data.project) };
+    const { data: resData } = await apiClient.put(`/websites/${id}`, updates);
+    return { ok: true, website: normalizeProject(resData.data) };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Update failed' };
   }
@@ -242,19 +256,75 @@ export async function removeWebsiteById(id) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   try {
-    await http.delete(`/projects/${tenantId}/${id}`);
+    await apiClient.delete(`/websites/${id}`);
     return { ok: true };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Delete failed' };
   }
 }
 
-// ─── Pages (stub — backend stores HTML in VersionHistory, not as separate pages) ─
+// ─── Pages ───────────────────────────────────────────────────────────────────
 
-export function fetchPages()     { return { pages: [] }; }
-export function createPage()     { return { ok: true }; }
-export function modifyPage()     { return { ok: true }; }
-export function removePageById() { return { ok: true }; }
+function normalizePage(page) {
+  if (!page) return null;
+  const id = String(page._id || page.id);
+  return {
+    ...page,
+    id,
+    _id: id,
+    title: page.title || 'Untitled Page',
+    slug: page.slug || '',
+    components: page.components || [],
+    version: page.version || 1,
+    status: page.status || 'draft',
+  };
+}
+
+export async function fetchPages(websiteId) {
+  const tenantId = getTenantId();
+  if (!tenantId) return { pages: [] };
+  try {
+    const { data } = await apiClient.get('/pages', {
+      params: websiteId ? { websiteId } : undefined,
+    });
+    return { pages: (data?.data || []).map(normalizePage) };
+  } catch {
+    return { pages: [] };
+  }
+}
+
+export async function createPage(payload) {
+  const tenantId = getTenantId();
+  if (!tenantId) return { ok: false, error: 'Not authenticated' };
+  try {
+    const { data } = await apiClient.post('/pages', payload);
+    return { ok: true, page: normalizePage(data?.data) };
+  } catch (err) {
+    return { ok: false, error: err.response?.data?.error || 'Failed to create page' };
+  }
+}
+
+export async function modifyPage(id, updates) {
+  const tenantId = getTenantId();
+  if (!tenantId) return { ok: false, error: 'Not authenticated' };
+  try {
+    const { data } = await apiClient.put(`/pages/${id}`, updates);
+    return { ok: true, page: normalizePage(data?.data) };
+  } catch (err) {
+    return { ok: false, error: err.response?.data?.error || 'Failed to update page' };
+  }
+}
+
+export async function removePageById(id) {
+  const tenantId = getTenantId();
+  if (!tenantId) return { ok: false, error: 'Not authenticated' };
+  try {
+    await apiClient.delete(`/pages/${id}`);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err.response?.data?.error || 'Failed to delete page' };
+  }
+}
 
 // ─── AI Website Generation ────────────────────────────────────────────────────
 
@@ -272,22 +342,49 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
   if (!projectId) return { ok: false, error: 'Project ID is required for generation' };
 
   try {
-    const { data } = await http.post(
-      `/projects/${tenantId}/${projectId}/generate`,
-      { prompt, previousHtml },
+    const { data: resData } = await apiClient.post(
+      `/ai/generate`,
+      { prompt, previousHtml, websiteId: projectId },
     );
-    
-    const version = data.version;
+
+    // Backend returns { ok: true, version: { versionNumber, htmlCode } }
+    const version = resData.version;
     return {
-      ok:            true,
-      html:          version.htmlCode || '',
+      ok: true,
+      html: version.htmlCode || '',
       versionNumber: version.versionNumber,
-      businessType:  'ai-generated',
-      businessName:  '',
-      usage:         { used: version.versionNumber, limit: 100 },
+      businessType: 'ai-generated',
+      businessName: '',
+      usage: { used: version.versionNumber, limit: 100 },
+      generation: resData.generation || {
+        target: 'frontend',
+        provider: 'gemini',
+        model: 'gemini-3-flash-preview',
+      },
     };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'AI generation failed' };
+  }
+}
+
+export async function generateBackendForWebsite(projectId) {
+  const tenantId = getTenantId();
+  if (!tenantId) return { ok: false, error: 'Not authenticated' };
+  if (!projectId) return { ok: false, error: 'Project ID is required' };
+
+  try {
+    const { data: resData } = await apiClient.post(`/site-backends/${projectId}/generate`);
+    return {
+      ok: true,
+      backend: resData.data,
+      generation: resData.generation || {
+        target: 'backend',
+        provider: 'groq',
+        model: 'openai/gpt-oss-120b',
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: err.response?.data?.error || 'Backend generation failed' };
   }
 }
 
@@ -297,8 +394,8 @@ export async function fetchVersions(projectId) {
   const tenantId = getTenantId();
   if (!tenantId || !projectId) return { versions: [] };
   try {
-    const { data } = await http.get(`/projects/${tenantId}/${projectId}/versions`);
-    return { versions: data.versions || [] };
+    const { data: resData } = await apiClient.get(`/websites/${projectId}/versions`);
+    return { versions: resData.data || [] };
   } catch {
     return { versions: [] };
   }
@@ -308,10 +405,10 @@ export async function rollbackVersion(projectId, versionId) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   try {
-    const { data } = await http.put(
-      `/projects/${tenantId}/${projectId}/versions/${versionId}/rollback`,
+    const { data: resData } = await apiClient.post(
+      `/websites/${projectId}/versions/${versionId}/restore`,
     );
-    return { ok: true, version: data.version };
+    return { ok: true, version: resData.data };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Rollback failed' };
   }
@@ -325,7 +422,7 @@ export async function fetchBranding() {
   if (!tenantId) return { branding: null };
   const cached = readBrandingCache(tenantId);
   try {
-    const { data } = await http.get(`/branding/${tenantId}`);
+    const { data } = await apiClient.get(`/branding/${tenantId}`);
     writeBrandingCache(tenantId, data.branding);
     return { branding: data.branding };
   } catch {
@@ -358,7 +455,7 @@ export async function modifyTenant(updates) {
   }
 
   try {
-    const { data } = await http.put(`/branding/${tenantId}`, payload);
+    const { data } = await apiClient.put(`/branding/${tenantId}`, payload);
     writeBrandingCache(tenantId, data.branding);
     return { ok: true, branding: data.branding };
   } catch (err) {
@@ -373,7 +470,7 @@ export async function uploadLogo(file) {
   const formData = new FormData();
   formData.append('file', file);
   try {
-    const { data } = await http.post(`/branding/${tenantId}/upload-logo`, formData, {
+    const { data } = await apiClient.post(`/branding/${tenantId}/upload-logo`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     patchBrandingCache(tenantId, { logo: data.logo });
@@ -391,7 +488,7 @@ export async function uploadImage(file, alt = '') {
   formData.append('file', file);
   if (alt) formData.append('alt', alt);
   try {
-    const { data } = await http.post(`/branding/${tenantId}/upload-image`, formData, {
+    const { data } = await apiClient.post(`/branding/${tenantId}/upload-image`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
     return { ok: true, image: data.image };
@@ -406,7 +503,7 @@ export async function fetchTeam() {
   const tenantId = getTenantId();
   if (!tenantId) return { users: [] };
   try {
-    const { data } = await http.get(`/tenants/${tenantId}/users`);
+    const { data } = await apiClient.get(`/tenants/${tenantId}/users`);
     return { users: data.users || [] };
   } catch {
     return { users: [] };
@@ -417,7 +514,7 @@ export async function inviteUser({ name, email, password, role = 'editor' }) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   try {
-    const { data } = await http.post(`/tenants/${tenantId}/users`, { name, email, password, role });
+    const { data } = await apiClient.post(`/tenants/${tenantId}/users`, { name, email, password, role });
     return { ok: true, user: data.user };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Failed to invite user' };
@@ -435,3 +532,4 @@ export function generateAILayout()      { return { ok: true, result: null }; }
 export function generateAIComponent()   { return { ok: true, result: null }; }
 export function suggestAISEO()          { return { ok: true, result: null }; }
 export function checkAIAccessibility()  { return { ok: true, result: null }; }
+

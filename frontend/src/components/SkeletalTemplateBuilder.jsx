@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { Layers, Sliders, Check, ArrowRight, ChevronRight } from 'lucide-react';
-import { PREBUILT_TEMPLATES, COMPONENT_LIBRARY, compilePayload } from '../lib/template-builder';
+import { Layers, Check, ArrowRight, ChevronRight } from 'lucide-react';
+import { PREBUILT_TEMPLATES, compilePayload } from '../lib/template-builder';
 
 // ─── Mini Wireframe: Template Preview ─────────────────────────────────────────
 function TemplateWireframe({ id }) {
@@ -469,9 +469,7 @@ function VariantWireframe({ section, variantIndex }) {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function SkeletalTemplateBuilder({ onGenerate }) {
-  const [tab, setTab] = useState('prebuilt');
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [selections, setSelections] = useState({});
   const [prompt, setPrompt] = useState('');
   const [hoveredTemplate, setHoveredTemplate] = useState(null);
 
@@ -479,19 +477,11 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
     setSelectedTemplate(prev => prev === id ? null : id);
   }
 
-  function handleVariantSelect(section, variantId) {
-    setSelections(prev => ({
-      ...prev,
-      [section]: prev[section] === variantId ? null : variantId,
-    }));
-  }
-
   function handleGenerate() {
-    if (!prompt.trim() && !selectedTemplate && Object.keys(selections).filter(k => selections[k]).length === 0) return;
+    if (!prompt.trim() && !selectedTemplate) return;
     const payload = compilePayload({
-      mode: tab,
+      mode: 'prebuilt',
       templateId: selectedTemplate,
-      selections,
       userPrompt: prompt,
     });
     onGenerate(payload);
@@ -504,8 +494,7 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
     }
   }
 
-  const customSelectCount = Object.values(selections).filter(Boolean).length;
-  const canGenerate = tab === 'prebuilt' ? !!selectedTemplate : customSelectCount >= 1;
+  const canGenerate = !!selectedTemplate;
 
   const S = {
     container: {
@@ -569,31 +558,22 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
             </h2>
           </div>
           <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', textAlign: 'right' }}>
-            {tab === 'prebuilt'
-              ? selectedTemplate ? `1 template selected` : 'select a template'
-              : customSelectCount > 0 ? `${customSelectCount} component${customSelectCount > 1 ? 's' : ''} selected` : 'select components'}
+            {selectedTemplate ? `1 template selected` : 'select a template'}
           </div>
         </div>
       </div>
 
-      {/* ── Tab Bar ── */}
       <div style={S.tabBar}>
-        <button style={S.tabBtn(tab === 'prebuilt')} onClick={() => setTab('prebuilt')}>
+        <button style={S.tabBtn(true)}>
           <Layers size={12} style={{ display: 'inline', marginRight: 6 }} />
           Prebuilt Templates
-        </button>
-        <button style={S.tabBtn(tab === 'custom')} onClick={() => setTab('custom')}>
-          <Sliders size={12} style={{ display: 'inline', marginRight: 6 }} />
-          Custom Builder
         </button>
       </div>
 
       {/* ── Scrollable Content ── */}
       <div style={S.scrollArea}>
 
-        {/* ─── PREBUILT TAB ─────────────────────────────────────── */}
-        {tab === 'prebuilt' && (
-          <div>
+        <div>
             <div style={S.sectionLabel}>
               <span>5 Design Systems — Pick One</span>
             </div>
@@ -688,86 +668,19 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
               ) : null;
             })()}
           </div>
-        )}
-
-        {/* ─── CUSTOM TAB ──────────────────────────────────────── */}
-        {tab === 'custom' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 28 }}>
-            {Object.entries(COMPONENT_LIBRARY).map(([sectionKey, sectionData], sectionIdx) => (
-              <div key={sectionKey}>
-                <div style={{ ...S.sectionLabel, marginBottom: 12 }}>
-                  <span style={{ fontSize: 13, marginRight: 4 }}>{sectionData.icon}</span>
-                  <span>{sectionData.label}</span>
-                  {selections[sectionKey] && (
-                    <span style={{ color: 'var(--text-high)', marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Check size={10} />
-                      <span>{sectionData.variants.find(v => v.id === selections[sectionKey])?.name}</span>
-                    </span>
-                  )}
-                </div>
-
-                <div className="stb-scroll-row">
-                  {sectionData.variants.map((variant, varIdx) => {
-                    const isSelected = selections[sectionKey] === variant.id;
-                    const wireframeHeight = sectionKey === 'navbar' ? 42 : sectionKey === 'footer' ? 60 : sectionKey === 'hero' ? 90 : 80;
-                    return (
-                      <div
-                        key={variant.id}
-                        className="stb-variant-card"
-                        onClick={() => handleVariantSelect(sectionKey, variant.id)}
-                        style={{
-                          flexShrink: 0, width: 168,
-                          border: isSelected ? '2px solid var(--text-high)' : '1px solid var(--border-color)',
-                          background: 'var(--bg-primary)', cursor: 'pointer', position: 'relative',
-                        }}
-                      >
-                        {/* Wireframe Preview */}
-                        <div style={{ height: wireframeHeight, overflow: 'hidden', borderBottom: '1px solid var(--border-color)', background: 'var(--bg-primary)' }}>
-                          <VariantWireframe section={sectionKey} variantIndex={varIdx} />
-                        </div>
-
-                        {/* Check */}
-                        {isSelected && (
-                          <div style={{
-                            position: 'absolute', top: 5, right: 5, width: 16, height: 16,
-                            background: 'var(--text-high)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          }}>
-                            <Check size={10} color="var(--bg-primary)" />
-                          </div>
-                        )}
-
-                        {/* Label */}
-                        <div style={{ padding: '8px 10px' }}>
-                          <div className="mono" style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 3 }}>
-                            {variant.name}
-                          </div>
-                          <div className="mono" style={{ fontSize: 9, color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                            {variant.description}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* ── Bottom Bar ── */}
       <div style={S.bottomBar}>
         {/* Template Reminder */}
-        {(selectedTemplate || customSelectCount > 0) && (
+        {selectedTemplate && (
           <div className="mono" style={{
             fontSize: 10, color: 'var(--text-muted)', marginBottom: 10,
             textTransform: 'uppercase', letterSpacing: '0.05em',
             display: 'flex', alignItems: 'center', gap: 6,
           }}>
             <ChevronRight size={10} />
-            {tab === 'prebuilt' && selectedTemplate
-              ? `${PREBUILT_TEMPLATES.find(t => t.id === selectedTemplate)?.name} template selected — describe your website below`
-              : `${customSelectCount} component${customSelectCount > 1 ? 's' : ''} selected — describe your website below`}
+            {`${PREBUILT_TEMPLATES.find(t => t.id === selectedTemplate)?.name} template selected — describe your website below`}
           </div>
         )}
 
@@ -777,7 +690,7 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
             onChange={e => setPrompt(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder={
-              tab === 'prebuilt' && !selectedTemplate
+              !selectedTemplate
                 ? 'Select a template above, then describe your website...'
                 : 'Describe your website — business name, purpose, content...'
             }

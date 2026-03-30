@@ -26,12 +26,12 @@ export default function RegisterPage() {
         setLoading(true); setError('');
         try {
             const result = await registerTenant({
-                name: form.orgName,
+                tenantName: form.orgName,
                 slug: form.slug || form.orgName.toLowerCase().replace(/\s+/g, '-'),
                 plan,
                 ownerName:     form.name,
                 ownerEmail:    form.email,
-                ownerPassword: form.password || 'demo123',
+                password: form.password || 'demo123',
             });
             if (result.ok) {
                 login(result.user, result.token);   // use real JWT from backend

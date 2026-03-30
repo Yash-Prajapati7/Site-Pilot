@@ -1,8 +1,18 @@
 import { Router } from 'express';
 import Tenant from '../models/Tenant.js';
-import { verifyToken, checkTenantAccess, requireAdmin } from '../middleware/auth.js';
+import { auth, verifyToken, checkTenantAccess, requireAdmin } from '../middleware/auth.js';
 
 const router = Router();
+
+router.get('/current', auth, async (req, res) => {
+  try {
+    const tenant = await Tenant.findById(req.tenantId).populate('ownerUserId', 'name email');
+    if (!tenant) return res.status(404).json({ success: false, error: 'Tenant not found.' });
+    res.json({ success: true, data: tenant });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // GET /api/tenants/:tenantId  — get tenant details

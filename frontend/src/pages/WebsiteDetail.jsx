@@ -18,10 +18,27 @@ export default function WebsiteDetailPage() {
     async function loadData() {
         const u = await fetchCurrentUser();
         const w = await fetchWebsites();
-        const p = fetchPages(id);
+        const p = await fetchPages(id);
+        const currentWebsite = w.websites?.find(s => s.id === id);
+        const fetchedPages = p.pages || [];
+
+        const pagesForView = fetchedPages.length > 0
+            ? fetchedPages
+            : (currentWebsite?.activeVersion?.htmlCode
+                ? [{
+                    id: `virtual-home-${id}`,
+                    title: 'Home',
+                    slug: 'home',
+                    components: [],
+                    version: currentWebsite.activeVersion?.versionNumber || 1,
+                    status: currentWebsite.status || 'draft',
+                    isVirtual: true,
+                }]
+                : []);
+
         setUser(u.user);
-        setWebsite(w.websites?.find(s => s.id === id));
-        setPages(p.pages || []);
+        setWebsite(currentWebsite);
+        setPages(pagesForView);
         setLoading(false);
     }
 
@@ -31,10 +48,14 @@ export default function WebsiteDetailPage() {
         setTimeout(() => { setDeploying(false); loadData(); }, 800);
     }
 
-    function handleDeletePage(pageId) {
+    async function handleDeletePage(pageId) {
         if (!confirm('Delete this page?')) return;
-        removePageById(pageId);
-        loadData();
+        const result = await removePageById(pageId);
+        if (!result.ok) {
+            alert(result.error || 'Failed to delete page');
+            return;
+        }
+        await loadData();
     }
 
     if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>;
@@ -95,8 +116,8 @@ export default function WebsiteDetailPage() {
                                         <td style={{ padding: '16px 24px' }}><span className="badge mono" style={{ textTransform: 'uppercase' }}>{page.status}</span></td>
                                         <td style={{ padding: '16px 24px' }}>
                                             <div style={{ display: 'flex', gap: 8 }}>
-                                                <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${id}/builder?page=${page.id}`)}>Edit</button>
-                                                <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', textTransform: 'uppercase' }} onClick={() => handleDeletePage(page.id)}>Delete</button>
+                                                <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${id}/builder${page.isVirtual ? '' : `?page=${page.id}`}`)}>{page.isVirtual ? 'Open Builder' : 'Edit'}</button>
+                                                {!page.isVirtual && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', textTransform: 'uppercase' }} onClick={() => handleDeletePage(page.id)}>Delete</button>}
                                             </div>
                                         </td>
                                     </tr>

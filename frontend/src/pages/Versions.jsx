@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Clock, Code, ArrowLeft, Eye } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { fetchWebsite, fetchVersions, rollbackVersion } from '../services/api';
+import apiClient from '../services/apiClient';
 
 export default function VersionsPage() {
     const { id } = useParams();
@@ -25,9 +26,9 @@ export default function VersionsPage() {
         load();
     }, [id]);
 
-    async function handleRestore(versionId) {
-        setRestoringId(versionId);
-        const result = await rollbackVersion(id, versionId);
+    async function handleRestore(versionNumber) {
+        setRestoringId(versionNumber);
+        const result = await rollbackVersion(id, versionNumber);
         setRestoringId(null);
         if (result.ok) {
             // Refresh versions list
@@ -38,11 +39,21 @@ export default function VersionsPage() {
         }
     }
 
+    async function handlePreview(versionNumber) {
+        try {
+            const res = await apiClient.get(`/websites/${id}/versions/${versionNumber}/html`);
+            const html = res.data?.data?.html || '';
+            setPreviewHtml(html);
+        } catch {
+            alert('Failed to load version preview');
+        }
+    }
+
     if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>;
     if (!website) return <div className="empty-state"><h3>Project not found</h3></div>;
 
     // Identify the active version
-    const activeVersionId = website.activeVersionId;
+    const activeVersion = Number(website.activeVersionId || website.activeVersion?.versionNumber || 0);
 
     return (
         <div className="animate-slide-up">
@@ -75,33 +86,33 @@ export default function VersionsPage() {
                 <div style={{ position: 'relative', paddingLeft: 40 }}>
                     <div style={{ position: 'absolute', left: 19, top: 0, bottom: 0, width: 1, background: 'var(--border-color)' }} />
                     {versions.map((v, i) => {
-                        const isActive = String(v._id) === String(activeVersionId);
+                        const isActive = Boolean(v.isCurrent) || Number(v.version) === activeVersion;
                         const date = new Date(v.createdAt).toLocaleString();
                         return (
-                            <div key={v._id} className="card" style={{ marginBottom: 24, position: 'relative', animation: `slideUp 0.4s ease ${i * 0.1}s both`, padding: 32, borderRadius: 'var(--radius-subtle)' }}>
+                            <div key={`${v.version}-${v.createdAt || i}`} className="card" style={{ marginBottom: 24, position: 'relative', animation: `slideUp 0.4s ease ${i * 0.1}s both`, padding: 32, borderRadius: 'var(--radius-subtle)' }}>
                                 <div style={{ position: 'absolute', left: -25, top: 36, width: 11, height: 11, borderRadius: 'var(--radius-hard)', background: isActive ? 'var(--text-high)' : 'var(--bg-primary)', border: '1px solid var(--text-high)' }} />
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                                            <span className="badge mono" style={{ textTransform: 'uppercase' }}>v{v.versionNumber}</span>
+                                            <span className="badge mono" style={{ textTransform: 'uppercase' }}>v{v.version}</span>
                                             {isActive && <span className="badge mono" style={{ background: 'var(--text-high)', color: 'var(--bg-primary)', textTransform: 'uppercase' }}>Active</span>}
                                         </div>
                                         <p style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-high)', fontStyle: 'italic' }}>
-                                            "{v.userPrompt?.slice(0, 100)}{v.userPrompt?.length > 100 ? '...' : ''}"
+                                            "{(v.prompt || 'Manual edit').slice(0, 100)}{(v.prompt || '').length > 100 ? '...' : ''}"
                                         </p>
                                         <div className="mono" style={{ display: 'flex', gap: 24, fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', flexWrap: 'wrap' }}>
-                                            <span style={{display:'flex',alignItems:'center',gap:4}}><User size={12}/> {v.brandingSnapshot?.companyName || 'Unknown'}</span>
+                                            <span style={{display:'flex',alignItems:'center',gap:4}}><User size={12}/> {website?.name || 'Website'}</span>
                                             <span style={{display:'flex',alignItems:'center',gap:4}}><Clock size={12}/> {date}</span>
-                                            <span style={{display:'flex',alignItems:'center',gap:4}}><Code size={12}/> {v.htmlCode?.split('\n').length || 0} lines</span>
+                                            <span style={{display:'flex',alignItems:'center',gap:4}}><Code size={12}/> {v.htmlLength || 0} chars</span>
                                         </div>
                                     </div>
                                     <div style={{ display: 'flex', gap: 12, flexShrink: 0 }}>
-                                        <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => setPreviewHtml(v.htmlCode)}>
+                                        <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }} onClick={() => handlePreview(v.version)}>
                                             <Eye size={12} /> Preview
                                         </button>
                                         {!isActive && (
-                                            <button className="btn btn-primary btn-sm mono" onClick={() => handleRestore(v._id)} disabled={restoringId === v._id} style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                {restoringId === v._id ? 'Restoring...' : 'Restore'}
+                                            <button className="btn btn-primary btn-sm mono" onClick={() => handleRestore(v.version)} disabled={restoringId === v.version} style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                {restoringId === v.version ? 'Restoring...' : 'Restore'}
                                             </button>
                                         )}
                                     </div>

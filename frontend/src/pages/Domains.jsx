@@ -15,7 +15,7 @@ export default function DomainsPage() {
     useEffect(() => {
         async function init() {
             const u = await fetchCurrentUser();
-            const w = fetchWebsites();
+            const w = await fetchWebsites();
             setUser(u.user);
             setWebsites(w.websites || []);
             setLoading(false);

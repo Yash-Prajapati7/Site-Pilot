@@ -12,6 +12,7 @@ export default function WebsitesPage() {
     const [newSite, setNewSite] = useState({ name: '', slug: '' });
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState('');
+    const canCreateWebsite = ['admin', 'owner'].includes(user?.role);
 
     useEffect(() => { loadData(); }, []);
 
@@ -47,7 +48,7 @@ export default function WebsitesPage() {
                     <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>Websites</h1>
                     <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase' }}>Manage your websites and pages</p>
                 </div>
-                {user?.role !== 'viewer' && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>+ New Website</button>}
+                {canCreateWebsite && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>+ New Website</button>}
             </div>
 
             <div className="grid grid-3" style={{ gap: 24 }}>
@@ -68,7 +69,7 @@ export default function WebsitesPage() {
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button className="btn btn-primary btn-sm mono" style={{ flex: 1, textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}`)}>Manage</button>
                             {user?.role !== 'viewer' && <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}/builder`)}>Builder</button>}
-                            {user?.role === 'admin' && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => deleteSite(site.id)} title="Delete"><Trash2 size={16} /></button>}
+                            {canCreateWebsite && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => deleteSite(site.id)} title="Delete"><Trash2 size={16} /></button>}
                         </div>
                     </div>
                 ))}
@@ -79,7 +80,7 @@ export default function WebsitesPage() {
                     <Globe size={32} style={{ marginBottom: 16 }} />
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>No websites yet</h3>
                     <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24, textTransform: 'uppercase' }}>Create your first website to start building</p>
-                    <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>Create Website</button>
+                    {canCreateWebsite && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>Create Website</button>}
                 </div>
             )}
 

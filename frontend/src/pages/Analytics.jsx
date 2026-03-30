@@ -12,7 +12,7 @@ export default function AnalyticsPage() {
     useEffect(() => {
         async function init() {
             const u = await fetchCurrentUser();
-            const w = fetchWebsites();
+            const w = await fetchWebsites();
             setUser(u.user);
             setWebsites(w.websites || []);
             setSelectedSite(w.websites?.[0]?.id || '');
