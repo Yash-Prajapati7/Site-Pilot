@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchCurrentUser, generateAIWebsite, fetchWebsite, generateBackendForWebsite } from '../services/api';
 import { ArrowLeft, Bot, Coffee, Rocket, Palette, ShoppingCart, Hospital, BookOpen, Scale, Lightbulb, Monitor, Smartphone, Tablet, Check, BarChart, Layers, Server, History, Download, Eye, EyeOff } from 'lucide-react';
 import SkeletalTemplateBuilder from '../components/SkeletalTemplateBuilder';
@@ -121,6 +121,7 @@ function VersionPanel({ websiteId, onRestore }) {
 export default function BuilderPage() {
     const { id } = useParams();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [messages, setMessages] = useState([]);
     const [prompt, setPrompt] = useState('');
     const [streaming, setStreaming] = useState(false);
@@ -142,6 +143,9 @@ export default function BuilderPage() {
     const chatEndRef = useRef(null);
     const iframeRef = useRef(null);
     const textareaRef = useRef(null);
+    const addPageMode = searchParams.get('addPage') === '1';
+    const designMode = searchParams.get('design');
+    const forceTemplateSelector = addPageMode && designMode === 'different';
 
     useEffect(() => {
         function handleResize() {
@@ -190,59 +194,69 @@ export default function BuilderPage() {
                     setProjectName(website.name);
                     // If there is an existing generated version, display it
                     const existingHtml = website.activeVersion?.htmlCode;
-                    if (existingHtml) {
+                    if (existingHtml && !forceTemplateSelector) {
                         setGeneratedHTML(existingHtml);
                         setCurrentVersion(website.activeVersion?.versionNumber || 1);
                         setShowTemplateBuilder(false);
                         setShowPreviewPane(true);
                         if (iframeRef.current) iframeRef.current.srcdoc = existingHtml;
                     }
+
+                    if (forceTemplateSelector) {
+                        setGeneratedHTML('');
+                        setMessages([]);
+                        setHistory([]);
+                        setTemplatePayload(null);
+                        setShowTemplateBuilder(true);
+                    }
                 }
 
-                try {
-                    const chatRes = await apiClient.get(`/websites/${id}/chat`);
-                    const chatData = chatRes?.data?.data || {};
-                    const chatHistory = Array.isArray(chatData.chatHistory) ? chatData.chatHistory : [];
-                    const promptHistory = Array.isArray(chatData.promptHistory) ? chatData.promptHistory : [];
+                if (!forceTemplateSelector) {
+                    try {
+                        const chatRes = await apiClient.get(`/websites/${id}/chat`);
+                        const chatData = chatRes?.data?.data || {};
+                        const chatHistory = Array.isArray(chatData.chatHistory) ? chatData.chatHistory : [];
+                        const promptHistory = Array.isArray(chatData.promptHistory) ? chatData.promptHistory : [];
 
-                    if (promptHistory.length > 0) {
-                        setHistory(promptHistory.map(entry => ({
-                            prompt: entry?.prompt || '',
-                            businessType: 'ai-generated',
-                        })).filter(entry => entry.prompt));
-                    }
+                        if (promptHistory.length > 0) {
+                            setHistory(promptHistory.map(entry => ({
+                                prompt: entry?.prompt || '',
+                                businessType: 'ai-generated',
+                            })).filter(entry => entry.prompt));
+                        }
 
-                    if (chatHistory.length > 0) {
-                        const mappedMessages = chatHistory
-                            .filter(item => item?.content)
-                            .map(item => ({
-                                role: item.role === 'user' ? 'user' : 'assistant',
-                                content: item.content,
-                                timestamp: item.ts ? new Date(item.ts) : new Date(),
-                            }));
-                        if (mappedMessages.length > 0) {
-                            setMessages(mappedMessages);
-                            setShowTemplateBuilder(false);
+                        if (chatHistory.length > 0) {
+                            const mappedMessages = chatHistory
+                                .filter(item => item?.content)
+                                .map(item => ({
+                                    role: item.role === 'user' ? 'user' : 'assistant',
+                                    content: item.content,
+                                    timestamp: item.ts ? new Date(item.ts) : new Date(),
+                                }));
+                            if (mappedMessages.length > 0) {
+                                setMessages(mappedMessages);
+                                setShowTemplateBuilder(false);
+                            }
+                        } else if (promptHistory.length > 0) {
+                            const promptMessages = promptHistory
+                                .filter(entry => entry?.prompt)
+                                .map(entry => ({
+                                    role: 'user',
+                                    content: entry.prompt,
+                                    timestamp: new Date(),
+                                }));
+                            if (promptMessages.length > 0) {
+                                setMessages(promptMessages);
+                                setShowTemplateBuilder(false);
+                            }
                         }
-                    } else if (promptHistory.length > 0) {
-                        const promptMessages = promptHistory
-                            .filter(entry => entry?.prompt)
-                            .map(entry => ({
-                                role: 'user',
-                                content: entry.prompt,
-                                timestamp: new Date(),
-                            }));
-                        if (promptMessages.length > 0) {
-                            setMessages(promptMessages);
-                            setShowTemplateBuilder(false);
-                        }
+                    } catch {
+                        // chat history unavailable; continue with default state
                     }
-                } catch {
-                    // chat history unavailable; continue with default state
                 }
 
                 // Fallback message when there is generated HTML but no persisted chat.
-                if (website?.activeVersion?.htmlCode) {
+                if (website?.activeVersion?.htmlCode && !forceTemplateSelector) {
                     setMessages(prev => {
                         if (prev.length > 0) return prev;
                         const v = website.activeVersion;
@@ -274,7 +288,7 @@ export default function BuilderPage() {
             }
         }
         init();
-    }, [id]);
+    }, [id, forceTemplateSelector]);
 
     useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });

@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { getPlanLimits } from '../config/plans.js';
 
 const TenantSchema = new mongoose.Schema(
   {
@@ -56,15 +57,8 @@ TenantSchema.pre('validate', function (next) {
 });
 
 TenantSchema.pre('save', function (next) {
-  const planLimits = {
-    free: { websites: 1, pages: 5, aiGenerations: 10, storage: 100, customDomains: 0, teamMembers: 1 },
-    starter: { websites: 3, pages: 20, aiGenerations: 50, storage: 500, customDomains: 1, teamMembers: 3 },
-    professional: { websites: 10, pages: 100, aiGenerations: 500, storage: 5000, customDomains: 5, teamMembers: 10 },
-    enterprise: { websites: -1, pages: -1, aiGenerations: -1, storage: -1, customDomains: -1, teamMembers: -1 },
-  };
-
   if (this.isModified('plan')) {
-    this.limits = planLimits[this.plan] || planLimits.free;
+    this.limits = getPlanLimits(this.plan);
   }
   next();
 });

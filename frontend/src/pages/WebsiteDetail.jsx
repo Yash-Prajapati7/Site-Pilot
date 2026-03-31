@@ -12,6 +12,7 @@ export default function WebsiteDetailPage() {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('pages');
     const [deploying, setDeploying] = useState(false);
+    const [showAddPagePrompt, setShowAddPagePrompt] = useState(false);
 
     useEffect(() => { loadData(); }, [id]);
 
@@ -58,6 +59,15 @@ export default function WebsiteDetailPage() {
         await loadData();
     }
 
+    function openAddPagePrompt() {
+        setShowAddPagePrompt(true);
+    }
+
+    function handleAddPageDesignChoice(designMode) {
+        setShowAddPagePrompt(false);
+        navigate(`/dashboard/websites/${id}/builder?addPage=1&design=${designMode}`);
+    }
+
     if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>;
     if (!website) return <div className="empty-state"><h3>Website not found</h3></div>;
 
@@ -95,7 +105,7 @@ export default function WebsiteDetailPage() {
                 <div className="card" style={{ padding: 32, borderRadius: 'var(--radius-subtle)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
                         <h2 style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pages <span className="mono" style={{ color: 'var(--text-muted)' }}>({pages.length})</span></h2>
-                        <button className="btn btn-primary btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${id}/builder`)}>+ Add Page</button>
+                        <button className="btn btn-primary btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={openAddPagePrompt}>+ Add Page</button>
                     </div>
                     <div style={{ overflowX: 'auto' }}>
                         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
@@ -163,6 +173,31 @@ export default function WebsiteDetailPage() {
                         <textarea className="input" defaultValue={website.settings?.seo?.description} rows={4} style={{ width: '100%', resize: 'vertical' }} />
                     </div>
                     <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Save SEO</button>
+                </div>
+            )}
+
+            {showAddPagePrompt && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }} onClick={() => setShowAddPagePrompt(false)}>
+                    <div className="card" style={{ width: '100%', maxWidth: 520, padding: 28, borderRadius: 'var(--radius-subtle)', animation: 'slideUp 0.25s ease' }} onClick={e => e.stopPropagation()}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                            <h3 style={{ fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Add New Page</h3>
+                            <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16 }} onClick={() => setShowAddPagePrompt(false)}>✕</button>
+                        </div>
+                        <p className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 20 }}>
+                            Choose how the new page should be styled
+                        </p>
+                        <div style={{ display: 'grid', gap: 12, marginBottom: 20 }}>
+                            <button className="btn btn-primary mono" style={{ width: '100%', justifyContent: 'center', textTransform: 'uppercase' }} onClick={() => handleAddPageDesignChoice('consistent')}>
+                                Continue With Existing Design
+                            </button>
+                            <button className="btn btn-ghost mono" style={{ width: '100%', justifyContent: 'center', textTransform: 'uppercase' }} onClick={() => handleAddPageDesignChoice('different')}>
+                                Start With Different Style
+                            </button>
+                        </div>
+                        <p className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', margin: 0 }}>
+                            Consistent opens chat-based editing. Different opens the design selector.
+                        </p>
+                    </div>
                 </div>
             )}
         </div>

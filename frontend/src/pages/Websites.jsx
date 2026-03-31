@@ -1,7 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCurrentUser, fetchWebsites, createWebsite, removeWebsiteById } from '../services/api';
-import { Globe, FileText, Globe2, Trash2, Plus } from 'lucide-react';
+import { Globe, FileText, Globe2, Trash2 } from 'lucide-react';
+
+function formatLimit(limit) {
+    return limit === -1 ? 'Unlimited' : String(limit);
+}
+
+function usagePercent(used, total) {
+    if (total === -1 || total === 0) return 0;
+    return Math.min((used / total) * 100, 100);
+}
 
 export default function WebsitesPage() {
     const navigate = useNavigate();
@@ -12,7 +21,14 @@ export default function WebsitesPage() {
     const [newSite, setNewSite] = useState({ name: '', slug: '' });
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState('');
-    const canCreateWebsite = ['admin', 'owner'].includes(user?.role);
+    const canManageWebsites = ['admin', 'owner'].includes(user?.role);
+    const websiteLimit = user?.tenant?.limits?.websites ?? 1;
+    const pageLimit = user?.tenant?.limits?.pages ?? 5;
+    const aiLimit = user?.tenant?.limits?.aiGenerations ?? 10;
+    const websiteUsage = user?.tenant?.usage?.websites ?? websites.length;
+    const pageUsage = user?.tenant?.usage?.pages ?? 0;
+    const aiUsage = user?.tenant?.usage?.aiGenerations ?? 0;
+    const canCreateWebsite = canManageWebsites && (websiteLimit === -1 || websiteUsage < websiteLimit);
 
     useEffect(() => { loadData(); }, []);
 
@@ -48,7 +64,46 @@ export default function WebsitesPage() {
                     <h1 style={{ fontSize: 32, fontWeight: 800, marginBottom: 8, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>Websites</h1>
                     <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase' }}>Manage your websites and pages</p>
                 </div>
-                {canCreateWebsite && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>+ New Website</button>}
+                {canManageWebsites && (
+                    <button
+                        className="btn btn-primary mono"
+                        style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        onClick={() => canCreateWebsite && setShowCreate(true)}
+                        disabled={!canCreateWebsite}
+                        title={!canCreateWebsite ? 'Website quota reached for current plan' : undefined}
+                    >
+                        + New Website
+                    </button>
+                )}
+            </div>
+
+            <div className="card" style={{ padding: 24, borderRadius: 'var(--radius-subtle)', marginBottom: 24 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                    <h2 style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Plan Usage</h2>
+                    <span className="badge mono" style={{ textTransform: 'uppercase' }}>{user?.tenant?.plan || 'free'}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 16 }}>
+                    {[
+                        { label: 'Websites', used: websiteUsage, total: websiteLimit },
+                        { label: 'Pages', used: pageUsage, total: pageLimit },
+                        { label: 'AI Generations', used: aiUsage, total: aiLimit },
+                    ].map((metric) => (
+                        <div key={metric.label} style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', padding: 12 }}>
+                            <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{metric.label}</div>
+                            <div className="mono" style={{ fontSize: 13, fontWeight: 700, marginBottom: 8 }}>
+                                {metric.used} / {formatLimit(metric.total)}
+                            </div>
+                            <div style={{ height: 4, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', overflow: 'hidden' }}>
+                                <div style={{ height: '100%', width: `${usagePercent(metric.used, metric.total)}%`, background: usagePercent(metric.used, metric.total) > 90 ? 'var(--error)' : 'var(--text-high)' }} />
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                {!canCreateWebsite && canManageWebsites && (
+                    <p className="mono" style={{ marginTop: 12, fontSize: 11, color: 'var(--error)', textTransform: 'uppercase' }}>
+                        Website limit reached. Upgrade plan to create more websites.
+                    </p>
+                )}
             </div>
 
             <div className="grid grid-3" style={{ gap: 24 }}>
@@ -69,7 +124,7 @@ export default function WebsitesPage() {
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button className="btn btn-primary btn-sm mono" style={{ flex: 1, textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}`)}>Manage</button>
                             {user?.role !== 'viewer' && <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}/builder`)}>Builder</button>}
-                            {canCreateWebsite && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => deleteSite(site.id)} title="Delete"><Trash2 size={16} /></button>}
+                            {canManageWebsites && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => deleteSite(site.id)} title="Delete"><Trash2 size={16} /></button>}
                         </div>
                     </div>
                 ))}
@@ -80,7 +135,7 @@ export default function WebsitesPage() {
                     <Globe size={32} style={{ marginBottom: 16 }} />
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>No websites yet</h3>
                     <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24, textTransform: 'uppercase' }}>Create your first website to start building</p>
-                    {canCreateWebsite && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowCreate(true)}>Create Website</button>}
+                    {canManageWebsites && <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => canCreateWebsite && setShowCreate(true)} disabled={!canCreateWebsite}>Create Website</button>}
                 </div>
             )}
 

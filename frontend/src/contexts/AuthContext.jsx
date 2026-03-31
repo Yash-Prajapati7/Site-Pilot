@@ -8,6 +8,14 @@ export function AuthProvider({ children }) {
   const [authToken, setAuthToken] = useState(null);
   const [loading, setLoading]     = useState(true);
 
+  const refreshUser = useCallback(async () => {
+    const { user: freshUser } = await fetchCurrentUser();
+    if (!freshUser) return null;
+    setUser(freshUser);
+    localStorage.setItem('user', JSON.stringify(freshUser));
+    return freshUser;
+  }, []);
+
   /**
    * On mount: read token from storage, then verify it with the backend.
    * This ensures stale / expired tokens are cleared automatically.
@@ -28,11 +36,8 @@ export function AuthProvider({ children }) {
       }
 
       // Always verify token with backend and refresh stored user.
-      const { user: freshUser } = await fetchCurrentUser();
-      if (freshUser) {
-        setUser(freshUser);
-        localStorage.setItem('user', JSON.stringify(freshUser));
-      } else {
+      const freshUser = await refreshUser();
+      if (!freshUser) {
         // Token invalid / expired — clear session
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
@@ -42,7 +47,7 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
     init();
-  }, []);
+  }, [refreshUser]);
 
   /** Called after a successful login or registration. */
   function login(userData, token) {
@@ -61,7 +66,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, authToken, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, authToken, loading, login, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

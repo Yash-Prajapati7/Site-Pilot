@@ -3,20 +3,24 @@ import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { registerTenant } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Rocket, Plus } from 'lucide-react';
+import { formatINR } from '../lib/currency';
+import { PLAN_DEFINITIONS, getPlanById } from '../lib/plans';
 
-const PLAN_DATA = [
-    { id: 'free', name: 'Free', price: '$0', features: ['1 Website', '3 Pages', '100MB', '5 AI Gen'], highlight: false },
-    { id: 'starter', name: 'Starter', price: '$9', features: ['3 Websites', '10 Pages', '1GB', '50 AI Gen', '1 Domain'], highlight: false },
-    { id: 'professional', name: 'Professional', price: '$29', features: ['10 Websites', '50 Pages', '10GB', '500 AI Gen', '5 Domains', 'Collab'], highlight: true },
-    { id: 'enterprise', name: 'Enterprise', price: '$99', features: ['Unlimited All', '100GB', 'Unlimited AI', 'Priority Support'], highlight: false },
-];
+const PLAN_DATA = PLAN_DEFINITIONS.map((plan) => ({
+    id: plan.id,
+    name: plan.name,
+    price: plan.price,
+    features: plan.features,
+    highlight: plan.highlight,
+}));
 
 export default function RegisterPage() {
     const navigate = useNavigate();
     const { login } = useAuth();
     const [searchParams] = useSearchParams();
+    const initialPlan = getPlanById(searchParams.get('plan')).id;
     const [step, setStep] = useState(1);
-    const [plan, setPlan] = useState(searchParams.get('plan') || 'free');
+    const [plan, setPlan] = useState(initialPlan);
     const [form, setForm] = useState({ orgName: '', slug: '', name: '', email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -62,7 +66,7 @@ export default function RegisterPage() {
                                 <div key={p.id} onClick={() => setPlan(p.id)} style={{ background: plan === p.id ? 'var(--text-high)' : 'var(--bg-primary)', color: plan === p.id ? 'var(--bg-primary)' : 'var(--text-high)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', padding: 24, cursor: 'pointer', transition: 'all 0.2s', position: 'relative' }}>
                                     {p.highlight && <div className="mono" style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: 'var(--primary)', color: '#FFFFFF', padding: '2px 8px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase' }}>POPULAR</div>}
                                     <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{p.name}</div>
-                                    <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 16, letterSpacing: '-0.05em' }}>{p.price}<span style={{ fontSize: 12, color: plan === p.id ? 'var(--bg-surface)' : 'var(--text-muted)', fontWeight: 500, letterSpacing: 'normal' }}>/mo</span></div>
+                                    <div style={{ fontSize: 32, fontWeight: 900, marginBottom: 16, letterSpacing: '-0.05em' }}>{formatINR(p.price)}<span style={{ fontSize: 12, color: plan === p.id ? 'var(--bg-surface)' : 'var(--text-muted)', fontWeight: 500, letterSpacing: 'normal' }}>/mo</span></div>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                         {p.features.map((f, i) => (<div key={i} style={{ fontSize: 12, color: plan === p.id ? 'var(--bg-surface)' : 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><Plus size={12} /> {f}</div>))}
                                     </div>

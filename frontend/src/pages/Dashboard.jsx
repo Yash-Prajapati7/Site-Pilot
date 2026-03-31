@@ -3,6 +3,15 @@ import { Link } from 'react-router-dom';
 import { fetchCurrentUser, fetchWebsites } from '../services/api';
 import { Globe, FileText, Users, Cpu, Palette, Rocket, User, Zap, ArrowRight } from 'lucide-react';
 
+function formatLimit(limit) {
+    return limit === -1 ? '∞' : limit;
+}
+
+function usagePercent(used, total) {
+    if (total === -1 || total === 0) return 0;
+    return Math.min((used / total) * 100, 100);
+}
+
 export default function DashboardPage() {
     const [user, setUser] = useState(null);
     const [websites, setWebsites] = useState([]);
@@ -22,14 +31,14 @@ export default function DashboardPage() {
     if (loading || !user) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><span className="spinner" /></div>;
 
     const tenant = user.tenant;
-    const limits = tenant?.planLimits || { websites: 1, pages: 3, storage: 100, ai: 5, domains: 0 };
+    const limits = tenant?.limits || { websites: 1, pages: 5, storage: 100, aiGenerations: 10, customDomains: 0, teamMembers: 1 };
     const usage = tenant?.usage || {};
 
     const stats = [
         { icon: <Globe size={16} />, label: 'Websites', value: websites.length, limit: limits.websites, change: '+1 this week', positive: true, color: '#8b5cf6' },
         { icon: <FileText size={16} />, label: 'Total Pages', value: websites.reduce((a, w) => a + (w.pageCount || 0), 0), limit: limits.pages, change: '+5 this week', positive: true, color: '#06b6d4' },
         { icon: <Users size={16} />, label: 'Team Members', value: tenant?.members?.length || 1, change: 'No change', positive: true, color: '#10b981' },
-        { icon: <Cpu size={16} />, label: 'AI Generations', value: usage.aiGenerations || 0, limit: limits.ai, change: '+12 today', positive: true, color: '#f59e0b' },
+        { icon: <Cpu size={16} />, label: 'AI Generations', value: usage.aiGenerations || 0, limit: limits.aiGenerations, change: '+12 today', positive: true, color: '#f59e0b' },
     ];
 
     const recentActivity = [
@@ -56,7 +65,10 @@ export default function DashboardPage() {
                             <div className="mono" style={{ fontSize: 11, color: s.positive ? 'var(--primary)' : 'var(--text-muted)' }}>{s.change}</div>
                         </div>
                         <div>
-                            <div className="mono" style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-high)', lineHeight: 1, marginBottom: 8 }}>{s.value}<span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{s.limit ? `/${s.limit}` : ''}</span></div>
+                            <div className="mono" style={{ fontSize: 32, fontWeight: 700, color: 'var(--text-high)', lineHeight: 1, marginBottom: 8 }}>
+                                {s.value}
+                                {s.limit !== undefined && <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{`/${formatLimit(s.limit)}`}</span>}
+                            </div>
                             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{s.label}</div>
                         </div>
                     </div>
@@ -116,15 +128,17 @@ export default function DashboardPage() {
                             {[
                                 { label: 'Websites', used: websites.length, total: limits.websites },
                                 { label: 'Storage', used: usage.storage || 0, total: limits.storage, unit: 'MB' },
-                                { label: 'AI Generations', used: usage.aiGenerations || 0, total: limits.ai },
+                                { label: 'AI Generations', used: usage.aiGenerations || 0, total: limits.aiGenerations },
                             ].map((m, i) => (
                                 <div key={i}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 13 }}>
                                         <span style={{ color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{m.label}</span>
-                                        <span className="mono" style={{ fontWeight: 600, color: 'var(--text-high)' }}>{m.used}{m.unit || ''} / {m.total}{m.unit || ''}</span>
+                                        <span className="mono" style={{ fontWeight: 600, color: 'var(--text-high)' }}>
+                                            {m.used}{m.unit || ''} / {m.total === -1 ? `Unlimited${m.unit || ''}` : `${m.total}${m.unit || ''}`}
+                                        </span>
                                     </div>
                                     <div style={{ height: 4, background: 'var(--bg-primary)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', overflow: 'hidden' }}>
-                                        <div style={{ height: '100%', background: (m.used / m.total) > 0.9 ? 'var(--error)' : 'var(--text-high)', width: `${Math.min((m.used / m.total) * 100, 100)}%` }} />
+                                        <div style={{ height: '100%', background: usagePercent(m.used, m.total) > 90 ? 'var(--error)' : 'var(--text-high)', width: `${usagePercent(m.used, m.total)}%` }} />
                                     </div>
                                 </div>
                             ))}

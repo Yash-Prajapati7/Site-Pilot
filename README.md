@@ -29,6 +29,26 @@ The system architecture is designed with a clear separation of concerns across m
 * **Database (MongoDB):** Stores tenant-scoped data including users, projects, versions, deployments, and activity logs.
 * **Media Storage (Cloudinary):** Manages assets related to branding and generated content.
 
+## UI Screenshots
+
+### Landing Page
+<img width="1919" height="873" alt="Landing page" src="https://github.com/user-attachments/assets/0a2c8f01-cd71-46f5-9023-621ec63afe44" />
+
+### Dashboard
+<img width="1909" height="873" alt="Dashboard" src="https://github.com/user-attachments/assets/f3354c97-76f8-46b3-b502-b2773479cd92" />
+
+### Website Screen
+<img width="1920" height="881" alt="Website screen" src="https://github.com/user-attachments/assets/46d0330f-2536-4afd-86e7-0e98feaed7f3" />
+
+### Builder - Design Selection Screen
+<img width="1920" height="874" alt="Builder - Design selection screen" src="https://github.com/user-attachments/assets/494bc4d0-6fbd-45b2-8fc1-af82eebe6777" />
+
+### Builder - AI Generation Interface
+<img width="1897" height="885" alt="Builder interface - Portfolio website generation" src="https://github.com/user-attachments/assets/11c6770b-dceb-48d4-904d-94bbd60ea096" />
+
+### Builder - Backend Generation Example
+<img width="1918" height="883" alt="Builder - Backend generation example" src="https://github.com/user-attachments/assets/3fcbb79c-9179-46ad-a0a6-ef957d7c639a" />
+
 ## Process Flow & Technology Stack
 
 ### Process Flow

@@ -141,7 +141,16 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             version: {
                 versionNumber,
                 htmlCode: fullHTML
-            }
+            },
+            tenant: {
+                plan: tenant.plan,
+                limits: tenant.limits,
+                usage: tenant.usage,
+            },
+            usage: {
+                used: tenant.usage.aiGenerations,
+                limit: tenant.limits.aiGenerations,
+            },
         });
 
     } catch (err) {

@@ -5,6 +5,15 @@
  */
 
 import apiClient from './apiClient';
+import {
+  DEFAULT_PLAN_LIMITS,
+  DEFAULT_PLAN_USAGE,
+  PLAN_DEFINITIONS,
+  getPlanById,
+  normalizePlanLimits,
+  normalizePlanUsage,
+  toLegacyPlanLimits,
+} from '../lib/plans';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -73,6 +82,55 @@ function patchBrandingCache(tenantId, partial) {
   writeBrandingCache(tenantId, { ...current, ...partial });
 }
 
+function normalizeTenant(tenantPayload) {
+  const tenantId = String(tenantPayload?.id || tenantPayload?._id || '');
+  const planId = tenantPayload?.plan || 'free';
+  const planConfig = getPlanById(planId);
+  const incomingLimits = normalizePlanLimits(tenantPayload?.limits || DEFAULT_PLAN_LIMITS);
+  const expectedLimits = normalizePlanLimits(planConfig.limits || DEFAULT_PLAN_LIMITS);
+  const hasLimitMismatch = Object.keys(expectedLimits).some(
+    (key) => Number(incomingLimits[key]) !== Number(expectedLimits[key])
+  );
+  const limits = hasLimitMismatch ? expectedLimits : incomingLimits;
+  const usage = normalizePlanUsage(tenantPayload?.usage || DEFAULT_PLAN_USAGE);
+
+  return {
+    id: tenantId,
+    name: tenantPayload?.name || '',
+    slug: tenantPayload?.slug || '',
+    plan: planId,
+    planPrice: Number.isFinite(Number(tenantPayload?.planPrice))
+      ? Number(tenantPayload.planPrice)
+      : planConfig.price,
+    limits,
+    usage,
+    branding: tenantPayload?.branding || {
+      primaryColor: '#8b5cf6',
+      secondaryColor: '#06b6d4',
+      accentColor: '#f59e0b',
+      headingFont: 'Outfit',
+      bodyFont: 'Inter',
+      logo: '',
+    },
+    // Keep old field for pages that still read tenant.planLimits.
+    planLimits: toLegacyPlanLimits(limits),
+    members: Array.isArray(tenantPayload?.members) ? tenantPayload.members : [],
+  };
+}
+
+function normalizeAuthenticatedUser(payload) {
+  const tenant = normalizeTenant(payload?.tenant || {});
+  const rawUser = payload?.user || {};
+  const userId = String(rawUser.id || rawUser._id || '');
+
+  return {
+    ...rawUser,
+    id: userId,
+    tenantId: tenant.id || String(rawUser.tenantId || ''),
+    tenant,
+  };
+}
+
 /**
  * Normalise a backend Project document into the shape the existing UI expects
  * (which uses "website" terminology).
@@ -124,12 +182,8 @@ export async function loginUser(email, password) {
   try {
     const { data: resData } = await apiClient.post('/auth/login', { email, password });
     const payload = resData?.data ?? resData;
-    const user = {
-      ...payload.user,
-      tenantId: String(payload.tenant?._id || payload.tenant?.id),
-      tenant: payload.tenant
-    };
-    return { ok: true, user, tenant: payload.tenant, token: payload.token };
+    const user = normalizeAuthenticatedUser(payload);
+    return { ok: true, user, tenant: user.tenant, token: payload.token };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Login failed' };
   }
@@ -150,12 +204,8 @@ export async function registerTenant({ ownerName, ownerEmail, password, ownerPas
       plan: plan || 'free',
     });
     const payload = resData?.data ?? resData;
-    const user = {
-      ...payload.user,
-      tenantId: String(payload.tenant?._id || payload.tenant?.id),
-      tenant: payload.tenant
-    };
-    return { ok: true, user, tenant: payload.tenant, token: payload.token };
+    const user = normalizeAuthenticatedUser(payload);
+    return { ok: true, user, tenant: user.tenant, token: payload.token };
   } catch (err) {
     return { ok: false, error: err.response?.data?.error || 'Registration failed' };
   }
@@ -176,20 +226,8 @@ export async function fetchCurrentUser() {
   try {
     const { data: resData } = await apiClient.get('/auth/me');
     const payload = resData?.data ?? resData;
-    // Attach tenant data onto user so existing pages can read user.tenant
-    const user = {
-      ...payload.user,
-      id: String(payload.user.id || payload.user._id),
-      tenantId: String(payload.tenant?._id || payload.tenant?.id),
-      tenant: {
-        ...payload.tenant,
-        id: String(payload.tenant?.id || payload.tenant?._id),
-        // Provide sensible defaults for fields used by Dashboard.jsx
-        planLimits: { websites: 10, pages: 50, storage: 1024, ai: 100, domains: 5 },
-        usage: { aiGenerations: 0, storage: 0, bandwidth: 0 },
-        members: [],
-      },
-    };
+    const user = normalizeAuthenticatedUser(payload);
+    if (!user.id) return { user: null };
     return { user };
   } catch {
     return { user: null };
@@ -355,7 +393,10 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
       versionNumber: version.versionNumber,
       businessType: 'ai-generated',
       businessName: '',
-      usage: { used: version.versionNumber, limit: 100 },
+      usage: resData.usage || {
+        used: Number(resData?.tenant?.usage?.aiGenerations || version.versionNumber || 0),
+        limit: Number(resData?.tenant?.limits?.aiGenerations || DEFAULT_PLAN_LIMITS.aiGenerations),
+      },
       generation: resData.generation || {
         target: 'frontend',
         provider: 'gemini',
@@ -523,8 +564,96 @@ export async function inviteUser({ name, email, password, role = 'editor' }) {
 
 // ─── Billing (stubs — no payment backend yet) ─────────────────────────────────
 
-export function fetchBilling()        { return { subscription: null }; }
-export function changePlan()          { return { ok: true }; }
+export async function fetchBilling() {
+  const tenantId = getTenantId();
+  if (!tenantId) return { ok: false, subscription: null, error: 'Not authenticated' };
+
+  try {
+    const { data: resData } = await apiClient.get('/billing');
+    const payload = resData?.data ?? resData;
+    const planId = payload?.plan || 'free';
+    const fallbackPlan = getPlanById(planId);
+    const incomingLimits = normalizePlanLimits(payload?.limits || DEFAULT_PLAN_LIMITS);
+    const expectedLimits = normalizePlanLimits(fallbackPlan.limits || DEFAULT_PLAN_LIMITS);
+    const hasLimitMismatch = Object.keys(expectedLimits).some(
+      (key) => Number(incomingLimits[key]) !== Number(expectedLimits[key])
+    );
+    const limits = hasLimitMismatch ? expectedLimits : incomingLimits;
+    const usage = normalizePlanUsage(payload?.usage);
+    const price = Number.isFinite(Number(payload?.price)) ? Number(payload.price) : fallbackPlan.price;
+    const invoices = Array.isArray(payload?.invoices) ? payload.invoices : [];
+
+    const payments = invoices.map((invoice) => {
+      const createdAt = invoice?.createdAt ? new Date(invoice.createdAt) : new Date();
+      const brand = invoice?.paymentMethod?.brand || 'Card';
+      const last4 = invoice?.paymentMethod?.last4 ? ` •••• ${invoice.paymentMethod.last4}` : '';
+      return {
+        date: createdAt.toLocaleDateString('en-IN'),
+        amount: Number(invoice?.amount || 0),
+        method: `${brand}${last4}`,
+        status: invoice?.status || 'paid',
+      };
+    });
+
+    const renewalDate = invoices[0]?.period?.end
+      ? new Date(invoices[0].period.end).toLocaleDateString('en-IN')
+      : null;
+
+    const plans = Array.isArray(payload?.plans) && payload.plans.length > 0
+      ? payload.plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        price: Number(plan.price) || 0,
+        features: Array.isArray(plan.features) ? plan.features : [],
+        limits: normalizePlanLimits(plan.limits),
+      }))
+      : PLAN_DEFINITIONS.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        price: plan.price,
+        features: [...plan.features],
+        limits: normalizePlanLimits(plan.limits),
+      }));
+
+    return {
+      ok: true,
+      plans,
+      subscription: {
+        plan: planId,
+        planName: fallbackPlan.name,
+        price,
+        renewalDate,
+        limits,
+        usage,
+        payments,
+      },
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      subscription: null,
+      error: err.response?.data?.error || 'Failed to load billing information',
+    };
+  }
+}
+
+export async function changePlan({ planId }) {
+  if (!planId) return { ok: false, error: 'Plan is required' };
+  try {
+    const { data: resData } = await apiClient.post('/billing/change-plan', { plan: planId });
+    const payload = resData?.data ?? resData;
+    return {
+      ok: true,
+      plan: payload?.plan || planId,
+      limits: normalizePlanLimits(payload?.limits),
+      usage: normalizePlanUsage(payload?.usage),
+      price: Number(payload?.price || getPlanById(payload?.plan || planId).price),
+      plans: Array.isArray(payload?.plans) ? payload.plans : [],
+    };
+  } catch (err) {
+    return { ok: false, error: err.response?.data?.error || 'Failed to change plan' };
+  }
+}
 
 // ─── Legacy AI helper stubs (keep imports working) ────────────────────────────
 

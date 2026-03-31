@@ -1,59 +1,89 @@
-import { useState, useEffect } from 'react';
-import { fetchCurrentUser, fetchBilling, changePlan } from '../services/api';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { fetchBilling, changePlan } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import { formatINR } from '../lib/currency';
+import { PLAN_DEFINITIONS } from '../lib/plans';
 
-const ALL_PLANS = [
-    { id: 'free', name: 'Free', price: 0, features: ['1 Website', '3 Pages/site', '100MB Storage', '5 AI Gen/mo', 'Platform Subdomain'] },
-    { id: 'starter', name: 'Starter', price: 9, features: ['3 Websites', '10 Pages/site', '1GB Storage', '50 AI Gen/mo', '1 Custom Domain', 'Analytics', '3 Team Members'] },
-    { id: 'professional', name: 'Professional', price: 29, features: ['10 Websites', '50 Pages/site', '10GB Storage', '500 AI Gen/mo', '5 Custom Domains', 'Analytics', '10 Team Members', 'Version History', 'Collaboration'] },
-    { id: 'enterprise', name: 'Enterprise', price: 99, features: ['Unlimited Websites', 'Unlimited Pages', '100GB Storage', 'Unlimited AI', 'Unlimited Domains', 'Full Analytics', 'Unlimited Team', 'Priority Support'] },
-];
+function mergePlans(apiPlans) {
+    if (!Array.isArray(apiPlans) || apiPlans.length === 0) return PLAN_DEFINITIONS;
+
+    return PLAN_DEFINITIONS.map((defaultPlan) => {
+        const fromApi = apiPlans.find((plan) => plan.id === defaultPlan.id);
+        if (!fromApi) return defaultPlan;
+        return {
+            ...defaultPlan,
+            ...fromApi,
+            features: Array.isArray(fromApi.features) && fromApi.features.length > 0
+                ? fromApi.features
+                : defaultPlan.features,
+        };
+    });
+}
 
 export default function BillingPage() {
-    const [user, setUser] = useState(null);
+    const { user, refreshUser } = useAuth();
     const [subscription, setSubscription] = useState(null);
+    const [plans, setPlans] = useState(PLAN_DEFINITIONS);
     const [loading, setLoading] = useState(true);
     const [showUpgrade, setShowUpgrade] = useState(false);
     const [showPayment, setShowPayment] = useState(false);
     const [selectedPlan, setSelectedPlan] = useState('');
     const [processing, setProcessing] = useState(false);
+    const [error, setError] = useState('');
+
+    const loadBillingState = useCallback(async () => {
+        setLoading(true);
+        setError('');
+
+        await refreshUser();
+        const billing = await fetchBilling();
+
+        if (!billing.ok) {
+            setError(billing.error || 'Failed to load billing details');
+            setLoading(false);
+            return;
+        }
+
+        setPlans(mergePlans(billing.plans));
+        setSubscription(billing.subscription);
+        setLoading(false);
+    }, [refreshUser]);
 
     useEffect(() => {
-        async function init() {
-            const u = await fetchCurrentUser();
-            const b = fetchBilling();
-            setUser(u.user);
-            setSubscription(b.subscription);
-            setLoading(false);
-        }
-        init();
-    }, []);
+        loadBillingState();
+    }, [loadBillingState]);
+
+    const currentPlanId = user?.tenant?.plan || subscription?.plan || 'free';
+
+    const currentPlan = useMemo(() => {
+        return plans.find((plan) => plan.id === currentPlanId) || plans[0] || PLAN_DEFINITIONS[0];
+    }, [plans, currentPlanId]);
 
     function handlePlanChange(planId) {
         setSelectedPlan(planId);
         setShowPayment(true);
     }
 
-    function confirmPlanChange() {
+    async function confirmPlanChange() {
+        if (!selectedPlan || processing) return;
+
         setProcessing(true);
-        const currentPlan = ALL_PLANS.find(p => p.id === user?.tenant?.plan);
-        const newPlan = ALL_PLANS.find(p => p.id === selectedPlan);
-        const action = newPlan.price > (currentPlan?.price || 0) ? 'upgrade' : 'downgrade';
+        setError('');
 
-        changePlan({ action, planId: selectedPlan, paymentMethod: 'Visa •••• 4242' });
+        const result = await changePlan({ planId: selectedPlan });
+        if (!result.ok) {
+            setError(result.error || 'Plan change failed');
+            setProcessing(false);
+            return;
+        }
 
-        const u = fetchCurrentUser();
-        const b = fetchBilling();
-        setUser(u.user);
-        setSubscription(b.subscription);
+        await loadBillingState();
         setShowPayment(false);
         setShowUpgrade(false);
         setProcessing(false);
     }
 
     if (loading) return <div style={{ display: 'flex', justifyContent: 'center', padding: 60 }}><div className="spinner" style={{ width: 32, height: 32 }} /></div>;
-
-    const currentPlan = ALL_PLANS.find(p => p.id === user?.tenant?.plan) || ALL_PLANS[0];
 
     return (
         <div className="animate-slide-up">
@@ -64,6 +94,12 @@ export default function BillingPage() {
                 </div>
             </div>
 
+            {error && (
+                <div className="mono" style={{ marginBottom: 24, background: 'var(--bg-primary)', border: '1px solid var(--error)', padding: 12, color: 'var(--error)', fontSize: 11, textTransform: 'uppercase' }}>
+                    {error}
+                </div>
+            )}
+
             <div className="card" style={{ marginBottom: 40, padding: 32, borderRadius: 'var(--radius-subtle)', border: '1px solid var(--text-high)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div>
@@ -72,12 +108,17 @@ export default function BillingPage() {
                             <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>{currentPlan.name}</span>
                             <span className="mono" style={{ fontSize: 24, fontWeight: 700 }}>{formatINR(currentPlan.price)}<span style={{ fontSize: 14, color: 'var(--text-muted)', fontWeight: 400 }}>/mo</span></span>
                         </div>
-                        {subscription && <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status: <span style={{ color: 'var(--text-high)', fontWeight: 700 }}>Active</span> · Renews: {subscription.renewalDate}</div>}
+                        {subscription && (
+                            <div className="mono" style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                Status: <span style={{ color: 'var(--text-high)', fontWeight: 700 }}>Active</span>
+                                {subscription.renewalDate ? ` · Renews: ${subscription.renewalDate}` : ''}
+                            </div>
+                        )}
                     </div>
                     <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => setShowUpgrade(true)}>Change Plan</button>
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 32, paddingTop: 32, borderTop: '1px solid var(--border-color)' }}>
-                    {currentPlan.features.map((f, i) => <span key={i} className="badge mono" style={{ fontSize: 10, textTransform: 'uppercase', background: 'var(--bg-surface)' }}>{f}</span>)}
+                    {(currentPlan.features || []).map((f, i) => <span key={i} className="badge mono" style={{ fontSize: 10, textTransform: 'uppercase', background: 'var(--bg-surface)' }}>{f}</span>)}
                 </div>
             </div>
 
@@ -147,13 +188,13 @@ export default function BillingPage() {
                             <button style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 20 }} onClick={() => setShowUpgrade(false)}>✕</button>
                         </div>
                         <div className="grid grid-4" style={{ gap: 16 }}>
-                            {ALL_PLANS.map(p => (
+                            {plans.map(p => (
                                 <div key={p.id} style={{ background: 'var(--bg-primary)', border: p.id === currentPlan.id ? '2px solid var(--text-high)' : '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', padding: 24, position: 'relative', display: 'flex', flexDirection: 'column' }}>
                                     {p.id === currentPlan.id && <div className="mono" style={{ position: 'absolute', top: -10, left: '50%', transform: 'translateX(-50%)', background: 'var(--text-high)', color: 'var(--bg-primary)', padding: '2px 12px', borderRadius: 'var(--radius-hard)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>CURRENT</div>}
                                     <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 8, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>{p.name}</div>
                                     <div className="mono" style={{ fontSize: 32, fontWeight: 700, marginBottom: 24 }}>{formatINR(p.price)}<span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>/mo</span></div>
                                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
-                                        {p.features.slice(0, 5).map((f, i) => <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>✓ {f}</div>)}
+                                        {(p.features || []).slice(0, 5).map((f, i) => <div key={i} className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>✓ {f}</div>)}
                                     </div>
                                     <button className={`btn ${p.id === currentPlan.id ? 'btn-ghost' : 'btn-primary'} btn-sm mono`} style={{ width: '100%', textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={() => handlePlanChange(p.id)} disabled={p.id === currentPlan.id}>
                                         {p.id === currentPlan.id ? 'Current' : p.price > currentPlan.price ? 'Upgrade' : 'Downgrade'}
@@ -175,11 +216,11 @@ export default function BillingPage() {
                         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-hard)', padding: 16, marginBottom: 24 }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
                                 <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase' }}>New Plan</span>
-                                <span className="mono" style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-high)', textTransform: 'uppercase' }}>{ALL_PLANS.find(p => p.id === selectedPlan)?.name}</span>
+                                <span className="mono" style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-high)', textTransform: 'uppercase' }}>{plans.find(p => p.id === selectedPlan)?.name}</span>
                             </div>
                                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                                 <span className="mono" style={{ color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase' }}>Monthly Cost</span>
-                                <span className="mono" style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-high)', textTransform: 'uppercase' }}>{formatINR(ALL_PLANS.find(p => p.id === selectedPlan)?.price)}/mo</span>
+                                <span className="mono" style={{ fontWeight: 700, fontSize: 11, color: 'var(--text-high)', textTransform: 'uppercase' }}>{formatINR(plans.find(p => p.id === selectedPlan)?.price)}/mo</span>
                             </div>
                         </div>
                         <div style={{ marginBottom: 16 }}>
@@ -191,7 +232,7 @@ export default function BillingPage() {
                             <div><label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>CVC</label><input className="input mono" placeholder="123" defaultValue="123" style={{ width: '100%' }} /></div>
                         </div>
                         <button className="btn btn-primary mono" style={{ width: '100%', textTransform: 'uppercase', letterSpacing: '0.05em' }} onClick={confirmPlanChange} disabled={processing}>
-                            {processing ? 'Processing...' : `Confirm & Pay ${formatINR(ALL_PLANS.find(p => p.id === selectedPlan)?.price)}/mo`}
+                            {processing ? 'Processing...' : `Confirm & Pay ${formatINR(plans.find(p => p.id === selectedPlan)?.price)}/mo`}
                         </button>
                     </div>
                 </div>

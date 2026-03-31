@@ -4,6 +4,7 @@ import User from '../models/User.js';
 import Tenant from '../models/Tenant.js';
 import Branding from '../models/Branding.js';
 import { verifyToken } from '../middleware/auth.js';
+import { getPlanConfig, getPlanLimits, hasPlanLimitMismatch, isValidPlan } from '../config/plans.js';
 
 const router = Router();
 
@@ -21,6 +22,15 @@ const signToken = (user) =>
     { expiresIn: '7d' }
   );
 
+async function ensureTenantPlanLimits(tenantDoc) {
+  if (!tenantDoc) return null;
+  if (!hasPlanLimitMismatch(tenantDoc.plan, tenantDoc.limits)) return tenantDoc;
+
+  tenantDoc.limits = getPlanLimits(tenantDoc.plan);
+  await tenantDoc.save();
+  return tenantDoc;
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/auth/register
 // Body: { tenantName, tenantSlug, ownerName, ownerEmail, password }
@@ -28,7 +38,7 @@ const signToken = (user) =>
 // ══════════════════════════════════════════════════════════════════════════════
 router.post('/register', async (req, res) => {
   try {
-    const { tenantName, tenantSlug, ownerName, ownerEmail, password } = req.body;
+    const { tenantName, tenantSlug, ownerName, ownerEmail, password, plan } = req.body;
 
     if (!tenantName || !tenantSlug || !ownerName || !ownerEmail || !password) {
       return res.status(400).json({ error: 'All fields are required.' });
@@ -36,6 +46,8 @@ router.post('/register', async (req, res) => {
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
+
+    const selectedPlan = isValidPlan(plan) ? plan : 'free';
 
     // Check if slug is already taken
     const existingTenant = await Tenant.findOne({ slug: tenantSlug.toLowerCase() });
@@ -47,6 +59,7 @@ router.post('/register', async (req, res) => {
     const tenant = await Tenant.create({
       name: tenantName,
       slug: tenantSlug.toLowerCase(),
+      plan: selectedPlan,
     });
 
     // Create owner user (admin role)
@@ -68,12 +81,23 @@ router.post('/register', async (req, res) => {
       companyName: tenantName,
     });
 
+    await ensureTenantPlanLimits(user.tenantId);
+
     const token = signToken(user);
 
     res.status(201).json({
       ok: true,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, tenantId: tenant._id },
-      tenant: { id: tenant._id, name: tenant.name, slug: tenant.slug },
+      tenant: {
+        id: tenant._id,
+        name: tenant.name,
+        slug: tenant.slug,
+        plan: tenant.plan,
+        planPrice: getPlanConfig(tenant.plan).price,
+        limits: tenant.limits,
+        usage: tenant.usage,
+        branding: tenant.branding,
+      },
       token,
     });
   } catch (err) {
@@ -104,12 +128,23 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }
 
+    await ensureTenantPlanLimits(user.tenantId);
+
     const token = signToken(user);
 
     res.json({
       ok: true,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId._id },
-      tenant: { id: user.tenantId._id, name: user.tenantId.name, slug: user.tenantId.slug },
+      tenant: {
+        id: user.tenantId._id,
+        name: user.tenantId.name,
+        slug: user.tenantId.slug,
+        plan: user.tenantId.plan,
+        planPrice: getPlanConfig(user.tenantId.plan).price,
+        limits: user.tenantId.limits,
+        usage: user.tenantId.usage,
+        branding: user.tenantId.branding,
+      },
       token,
     });
   } catch (err) {
@@ -125,10 +160,21 @@ router.get('/me', verifyToken, async (req, res) => {
     const user = await User.findById(req.userId).populate('tenantId');
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
+    await ensureTenantPlanLimits(user.tenantId);
+
     res.json({
       ok: true,
       user: { id: user._id, name: user.name, email: user.email, role: user.role, tenantId: user.tenantId._id },
-      tenant: { id: user.tenantId._id, name: user.tenantId.name, slug: user.tenantId.slug },
+      tenant: {
+        id: user.tenantId._id,
+        name: user.tenantId.name,
+        slug: user.tenantId.slug,
+        plan: user.tenantId.plan,
+        planPrice: getPlanConfig(user.tenantId.plan).price,
+        limits: user.tenantId.limits,
+        usage: user.tenantId.usage,
+        branding: user.tenantId.branding,
+      },
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

@@ -4,6 +4,7 @@ import { loginUser } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Bot, BarChart, Lock, Rocket, CreditCard, Building, Zap, Plus, ArrowRight, Menu, X } from 'lucide-react';
 import { formatINR } from '../lib/currency';
+import { PLAN_DEFINITIONS } from '../lib/plans';
 
 // --- Custom SVG Graphics for Features ---
 
@@ -164,12 +165,13 @@ const FEATURES = [
   { graphic: SubscriptionGraphic, title: 'Subscription Management', desc: 'Flexible plans with automated billing, upgrades, and feature gating.', color: '#ef4444' },
 ];
 
-const PLANS = [
-  { name: 'Free', price: 0, features: ['1 Website', '3 Pages', '100MB Storage', '5 AI Generations', 'Platform Subdomain'], highlight: false },
-  { name: 'Starter', price: 999, features: ['3 Websites', '10 Pages', '1GB Storage', '50 AI Generations', '1 Custom Domain', 'Analytics', '3 Team Members'], highlight: false },
-  { name: 'Professional', price: 2999, features: ['10 Websites', '50 Pages', '10GB Storage', '500 AI Generations', '5 Custom Domains', 'Advanced Analytics', '10 Team Members', 'Version History', 'Collaboration'], highlight: true },
-  { name: 'Enterprise', price: 4999, features: ['Unlimited Everything', '100GB Storage', 'Unlimited AI', 'Unlimited Domains', 'Full Analytics', 'Unlimited Team', 'Priority Support', 'Custom Integrations'], highlight: false },
-];
+const PLANS = PLAN_DEFINITIONS.map((plan) => ({
+  id: plan.id,
+  name: plan.name,
+  price: plan.price,
+  features: plan.features,
+  highlight: plan.highlight,
+}));
 
 const DEMO_USERS = [
   { name: 'Marco (Owner)', email: 'marco@bellacucina.com', tenant: 'Bella Cucina', plan: 'Professional' },
@@ -179,7 +181,7 @@ const DEMO_USERS = [
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { authToken } = useAuth();
+  const { authToken, login } = useAuth();
   const [loginLoading, setLoginLoading] = useState(null);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -226,9 +228,14 @@ export default function LandingPage() {
   async function quickLogin(email) {
     setLoginLoading(email);
     try {
-      const result = loginUser(email, 'demo123');
-      if (result.ok) navigate('/dashboard');
-    } catch (e) { }
+      const result = await loginUser(email, 'demo123');
+      if (result.ok) {
+        login(result.user, result.token);
+        navigate('/dashboard');
+      }
+    } catch {
+      // Keep silent here since this is demo-only UX.
+    }
     setLoginLoading(null);
   }
 
@@ -551,7 +558,7 @@ export default function LandingPage() {
                     </div>
                   ))}
                 </div>
-                <button onClick={() => navigate('/register?plan=' + p.name.toLowerCase())} className={`btn ${p.highlight ? 'btn-primary' : 'btn-secondary'}`} style={{ width: '100%' }}>
+                <button onClick={() => navigate('/register?plan=' + p.id)} className={`btn ${p.highlight ? 'btn-primary' : 'btn-secondary'}`} style={{ width: '100%' }}>
                   {p.name === 'Free' ? 'Start Free' : 'Get Started'}
                 </button>
               </div>
