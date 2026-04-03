@@ -20,7 +20,7 @@ SitePilot is an AI-assisted, multi-tenant website builder platform designed to s
 * Comprehensive modules for team management, analytics, billing, and project governance.
 
 ## Architecture Overview
-<img width="1927" height="627" alt="SitePilot Architecture" src="https://github.com/user-attachments/assets/fd88aca3-70d4-49ca-be31-b6edc4efb245" />
+<img width="1927" height="627" alt="SitePilot Architecture" src="https://github-production-user-asset-6210df.s3.amazonaws.com/157267869/571405112-fd88aca3-70d4-49ca-be31-b6edc4efb245.png?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260403%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260403T073226Z&X-Amz-Expires=300&X-Amz-Signature=fb204ab9034827bc337b034e77496790c7fe5661db44c85429955a5f376f0319&X-Amz-SignedHeaders=host" />
 The system architecture is designed with a clear separation of concerns across multiple layers to ensure scalability, maintainability, and performance:
 
 * **Frontend (React + Vite):** Manages authentication, dashboard navigation, builder interactions, and role-based user experiences.
