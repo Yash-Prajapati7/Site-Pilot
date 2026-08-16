@@ -41,6 +41,7 @@ router.put('/:tenantId', verifyToken, checkTenantAccess, requireEditor, async (r
     const allowedFields = [
       'companyName', 'companyDescription', 'primaryColor', 'secondaryColor',
       'accentColor', 'backgroundColor', 'bgColor', 'textColor', 'fontHeading', 'fontBody',
+      'userProvidedColorPallete',
     ];
     for (const key of allowedFields) {
       if (req.body[key] === undefined) continue;

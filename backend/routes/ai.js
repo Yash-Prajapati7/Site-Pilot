@@ -4,6 +4,7 @@ import { generateWithGemini } from '../services/gemini.js';
 import Website from '../models/Website.js';
 import Page from '../models/Page.js';
 import Tenant from '../models/Tenant.js';
+import Branding from '../models/Branding.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
@@ -34,18 +35,22 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             if (website && !existingHTML) existingHTML = website.generatedHTML || '';
         }
 
-        const mockBranding = {
+        const dbBranding = await Branding.findOne({ tenantId: req.tenantId });
+        const branding = dbBranding ? dbBranding.toObject() : {
             companyName: website?.name || 'My Company',
             companyDescription: website?.description || '',
             primaryColor: '#6366f1',
             secondaryColor: '#4f46e5',
             backgroundColor: '#ffffff',
-            textColor: '#1f2937',
+            textColor: '#ffffff',
             fontHeading: 'Inter',
             fontBody: 'Inter'
         };
 
-        const rawHTML = await generateWithGemini(prompt, mockBranding, existingHTML);
+        if (website?.name && !branding.companyName) branding.companyName = website.name;
+        if (website?.description && !branding.companyDescription) branding.companyDescription = website.description;
+
+        const rawHTML = await generateWithGemini(prompt, branding, existingHTML);
         const fullHTML = cleanGeneratedHTML(rawHTML);
 
         let versionNumber = 1;

@@ -172,7 +172,7 @@ router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, re
       accentColor:    branding.accentColor,
       // Prefer new field names if present
       bgColor:         branding.bgColor || branding.backgroundColor,
-      textColor:       branding.textColor || '#111111',
+      textColor:       branding.textColor || '#ffffff',
       fontHeading:    branding.fontHeading,
       fontBody:       branding.fontBody,
       services:       branding.services.map((s) => ({ name: s.name, description: s.description, price: s.price })),

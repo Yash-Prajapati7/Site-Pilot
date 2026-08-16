@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { Palette, Type, Image, UploadCloud, Save, CheckCircle, AlertCircle, Briefcase, X, AlignLeft } from 'lucide-react';
+import { Palette, Type, Image, UploadCloud, Save, Briefcase, X, AlignLeft, Code, Copy, Check, Sparkles } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { fetchCurrentUser, fetchBranding, modifyTenant, uploadLogo } from '../services/api';
 import { formatINR } from '../lib/currency';
 
@@ -7,9 +8,9 @@ export default function BrandingPage() {
     const [user, setUser] = useState(null);
     const [branding, setBranding] = useState({});
     const [saving, setSaving] = useState(false);
-    const [saveStatus, setSaveStatus] = useState(null); // 'ok' | 'error' | null
     const [uploading, setUploading] = useState(false);
     const [loading, setLoading] = useState(true);
+    const [copiedHex, setCopiedHex] = useState(null);
     const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '' });
     const logoInputRef = useRef(null);
 
@@ -65,13 +66,56 @@ export default function BrandingPage() {
         return lum > 0.7;
     }
 
+    function parseCssColorVariables(text) {
+        if (!text || typeof text !== 'string') return [];
+        const results = [];
+        const seenHex = new Set();
+
+        // 1. Match CSS variable definitions: --var-name: #hexCode;
+        const varRegex = /(--[a-zA-Z0-9_-]+)\s*:\s*(#[0-9a-fA-F]{3,8})/g;
+        let match;
+        while ((match = varRegex.exec(text)) !== null) {
+            const varName = match[1];
+            const hex = normalizeHex(match[2]);
+            if (hex) {
+                results.push({ varName, hex });
+                seenHex.add(hex.toLowerCase());
+            }
+        }
+
+        // 2. If no CSS variables were matched, match standalone hex codes: #6C63FF, #FFF, etc.
+        if (results.length === 0) {
+            const hexRegex = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})\b/g;
+            let count = 1;
+            while ((match = hexRegex.exec(text)) !== null) {
+                const hex = normalizeHex(match[0]);
+                if (hex && !seenHex.has(hex.toLowerCase())) {
+                    seenHex.add(hex.toLowerCase());
+                    results.push({ varName: `--color-${count++}`, hex });
+                }
+            }
+        }
+
+        return results;
+    }
+
+    function copyToClipboard(hex) {
+        if (!hex) return;
+        navigator.clipboard.writeText(hex);
+        setCopiedHex(hex);
+        toast.success(`Copied ${hex} to clipboard!`, { duration: 1500 });
+        setTimeout(() => setCopiedHex(null), 2000);
+    }
+
     async function handleSave() {
         setSaving(true);
-        setSaveStatus(null);
         const result = await modifyTenant(branding);
-        setSaveStatus(result.ok ? 'ok' : 'error');
         setSaving(false);
-        setTimeout(() => setSaveStatus(null), 3000);
+        if (result.ok) {
+            toast.success('Branding saved successfully!');
+        } else {
+            toast.error(result.error || 'Failed to save branding. Please try again.');
+        }
     }
 
     async function handleLogoUpload(e) {
@@ -79,13 +123,18 @@ export default function BrandingPage() {
         if (!file) return;
         setUploading(true);
         const result = await uploadLogo(file);
-        if (result.ok) setBranding(prev => ({ ...prev, logo: result.logo }));
+        if (result.ok) {
+            setBranding(prev => ({ ...prev, logo: result.logo }));
+            toast.success('Logo uploaded successfully!');
+        } else {
+            toast.error(result.error || 'Failed to upload logo.');
+        }
         setUploading(false);
     }
 
     function handleAddService() {
         if (!serviceForm.name.trim()) {
-            alert('Service name is required');
+            toast.error('Service name is required');
             return;
         }
         const newService = {
@@ -98,6 +147,7 @@ export default function BrandingPage() {
             services: [...(prev.services || []), newService],
         }));
         setServiceForm({ name: '', description: '', price: '' });
+        toast.success(`Service "${newService.name}" added`);
     }
 
     function handleRemoveService(index) {
@@ -116,14 +166,20 @@ export default function BrandingPage() {
         { key: 'secondaryColor', label: 'Secondary Color', defaultHex: '#10b981' },
         { key: 'accentColor', label: 'Accent Color', defaultHex: '#f59e0b' },
         { key: 'bgColor', label: 'Background Color', defaultHex: '#ffffff' },
-        { key: 'textColor', label: 'Text Color', defaultHex: '#111827' },
+        { key: 'textColor', label: 'Text Color', defaultHex: '#ffffff' },
     ];
 
-    const brandName = branding.brandName || user?.tenant?.name || 'Company';
-    const brandDescription = branding.brandDescription || 'Your tagline or mission statement goes here';
+    const parsedPalette = parseCssColorVariables(branding.userProvidedColorPallete || '');
+
+    const brandName = branding.brandName || branding.companyName || user?.tenant?.name || 'Company';
+    const brandDescription = branding.brandDescription || branding.companyDescription || 'Your tagline or mission statement goes here';
+    const headingFont = branding.fontHeading || branding.headingFont || 'Outfit';
+    const bodyFont = branding.fontBody || branding.bodyFont || 'Inter';
     const pBgColor = normalizeHex(branding.bgColor) || normalizeHex(branding.backgroundColor) || '#ffffff';
-    const pTextColor = normalizeHex(branding.textColor) || '#111827';
-    const pPrimaryColor = normalizeHex(branding.primaryColor) || '#8b5cf6';
+    const pTextColor = normalizeHex(branding.textColor) || '#ffffff';
+    const pPrimaryColor = parsedPalette.length > 0 
+        ? parsedPalette[0].hex 
+        : (normalizeHex(branding.primaryColor) || '#8b5cf6');
     
     const previewServices = branding.services?.length > 0 
         ? branding.services 
@@ -140,12 +196,13 @@ export default function BrandingPage() {
                 <p className="mono" style={{ color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase' }}>Customize your brand colors, typography, services, and visual identity</p>
             </div>
 
-            {/* Changed from rigid grid to fluid flexbox */}
+            {/* Fluid flexbox layout */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 24, alignItems: 'flex-start' }}>
                 
-                {/* Controls - takes up remaining space, min 300px */}
+                {/* Controls */}
                 <div style={{ flex: '1 1 300px', display: 'flex', flexDirection: 'column', gap: 24 }}>
                     
+                    {/* Brand Details */}
                     <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><AlignLeft size={16}/> Brand Details</h3>
                         <div style={{ marginBottom: 16 }}>
@@ -158,8 +215,93 @@ export default function BrandingPage() {
                         </div>
                     </div>
 
+                    {/* Custom Color Palette (:root CSS / Hex Input) */}
                     <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
-                        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><Palette size={16}/> Colors</h3>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+                            <h3 style={{ fontSize: 16, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <Code size={16}/> Custom Color Palette (:root CSS)
+                            </h3>
+                            <button 
+                                type="button" 
+                                className="btn btn-ghost btn-sm mono" 
+                                style={{ fontSize: 10, padding: '4px 8px', textTransform: 'uppercase' }}
+                                onClick={() => setBranding({
+                                    ...branding,
+                                    userProvidedColorPallete: `:root {\n  --color-1: #6C63FF;\n  --color-2: #7D6AFF;\n  --color-3: #9C87FF;\n  --color-4: #B8A9FF;\n  --color-5: #D4CBFF;\n}`
+                                })}
+                            >
+                                <Sparkles size={12}/> Load Example
+                            </button>
+                        </div>
+                        <p className="mono" style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16, textTransform: 'uppercase', lineHeight: 1.5 }}>
+                            Paste a CSS <code>:root</code> block with hex codes. The AI will design your website using these exact color variables.
+                        </p>
+
+                        <textarea 
+                            className="input mono" 
+                            placeholder={`:root {\n  --color-1: #6C63FF;\n  --color-2: #7D6AFF;\n  --color-3: #9C87FF;\n  --color-4: #B8A9FF;\n  --color-5: #D4CBFF;\n}`}
+                            value={branding.userProvidedColorPallete || ''} 
+                            onChange={e => setBranding({ ...branding, userProvidedColorPallete: e.target.value })} 
+                            style={{ width: '100%', minHeight: 120, fontSize: 12, lineHeight: 1.5, background: 'var(--bg-primary)', padding: 12, resize: 'vertical' }} 
+                        />
+
+                        {/* Live Parsed Palette Grid */}
+                        <div style={{ marginTop: 16 }}>
+                            <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 10 }}>
+                                Parsed Color Palette ({parsedPalette.length} {parsedPalette.length === 1 ? 'color' : 'colors'})
+                            </div>
+                            {parsedPalette.length > 0 ? (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 10 }}>
+                                    {parsedPalette.map((col, idx) => (
+                                        <div 
+                                            key={idx}
+                                            onClick={() => copyToClipboard(col.hex)}
+                                            style={{
+                                                background: 'var(--bg-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: 'var(--radius-hard)',
+                                                padding: 8,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 8,
+                                                cursor: 'pointer',
+                                                transition: 'transform 0.15s ease, border-color 0.15s ease',
+                                            }}
+                                            title="Click to copy hex"
+                                            onMouseEnter={e => e.currentTarget.style.borderColor = col.hex}
+                                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border-color)'}
+                                        >
+                                            <div style={{
+                                                width: 28,
+                                                height: 28,
+                                                borderRadius: 6,
+                                                background: col.hex,
+                                                border: '1px solid rgba(255,255,255,0.15)',
+                                                flexShrink: 0
+                                            }} />
+                                            <div style={{ overflow: 'hidden', flex: 1 }}>
+                                                <div className="mono" style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-high)', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>
+                                                    {col.varName}
+                                                </div>
+                                                <div className="mono" style={{ fontSize: 10, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                    {col.hex}
+                                                    {copiedHex === col.hex ? <Check size={10} color="#10b981" /> : <Copy size={10} style={{ opacity: 0.5 }} />}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="mono" style={{ padding: 16, background: 'var(--bg-primary)', border: '1px dashed var(--border-color)', borderRadius: 'var(--radius-hard)', fontSize: 11, color: 'var(--text-muted)', textAlign: 'center', textTransform: 'uppercase' }}>
+                                    No colors detected yet. Paste :root CSS or hex codes above.
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Standard Color Pickers */}
+                    <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
+                        <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><Palette size={16}/> Standard Colors</h3>
                         {COLOR_CONFIG.map(({ key, label, defaultHex }) => {
                             const currentHex = normalizeHex(branding[key]) || defaultHex;
                             return (
@@ -174,11 +316,12 @@ export default function BrandingPage() {
                         })}
                     </div>
 
+                    {/* Services */}
                     <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><Briefcase size={16}/> Services</h3>
                         <div style={{ marginBottom: 24, display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <input className="input" type="text" placeholder="Service name" value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} style={{ width: '100%' }} />
-                            <textarea className="input" placeholder="Description" value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} style={{ width: '100%', minHeight: 60, fontFamily: 'Inter', fontSize: 13 }} />
+                            <textarea className="input" placeholder="Description" value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} style={{ width: '100%', minHeight: 60, fontFamily: `'${bodyFont}', sans-serif`, fontSize: 13 }} />
                             <input className="input" type="number" placeholder="Price (₹)" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} style={{ width: '100%' }} />
                             <button className="btn btn-primary mono" onClick={handleAddService} style={{ textTransform: 'uppercase', letterSpacing: '0.05em', padding: '10px', fontSize: 12 }}>
                                 + Add Service
@@ -189,9 +332,9 @@ export default function BrandingPage() {
                                 {branding.services.map((service, idx) => (
                                     <div key={idx} style={{ marginBottom: 12, padding: 12, background: 'var(--bg-primary)', borderRadius: 'var(--radius-hard)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                         <div style={{ flex: 1, paddingRight: 12 }}>
-                                            <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-high)', marginBottom: 4 }}>{service.name}</div>
-                                            {service.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4 }}>{service.description}</div>}
-                                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatINR(service.price || 0)}</div>
+                                            <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--text-high)', marginBottom: 4, fontFamily: `'${headingFont}', sans-serif` }}>{service.name}</div>
+                                            {service.description && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, fontFamily: `'${bodyFont}', sans-serif` }}>{service.description}</div>}
+                                            <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{formatINR(service.price || 0)}</div>
                                         </div>
                                         <button onClick={() => handleRemoveService(idx)} style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 4, flexShrink: 0 }}>
                                             <X size={16} />
@@ -202,22 +345,24 @@ export default function BrandingPage() {
                         )}
                     </div>
 
+                    {/* Typography */}
                     <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><Type size={16}/> Typography</h3>
                         <div style={{ marginBottom: 24 }}>
                             <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Heading Font</label>
-                            <select className="input" value={branding.fontHeading || 'Outfit'} onChange={e => setBranding({ ...branding, fontHeading: e.target.value })} style={{ width: '100%' }}>
-                                {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                            <select className="input" value={branding.fontHeading || 'Outfit'} onChange={e => setBranding({ ...branding, fontHeading: e.target.value, headingFont: e.target.value })} style={{ width: '100%', fontFamily: `'${headingFont}', sans-serif` }}>
+                                {FONTS.map(f => <option key={f} value={f} style={{ fontFamily: `'${f}', sans-serif` }}>{f}</option>)}
                             </select>
                         </div>
                         <div>
                             <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Body Font</label>
-                            <select className="input" value={branding.fontBody || 'Inter'} onChange={e => setBranding({ ...branding, fontBody: e.target.value })} style={{ width: '100%' }}>
-                                {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                            <select className="input" value={branding.fontBody || 'Inter'} onChange={e => setBranding({ ...branding, fontBody: e.target.value, bodyFont: e.target.value })} style={{ width: '100%', fontFamily: `'${bodyFont}', sans-serif` }}>
+                                {FONTS.map(f => <option key={f} value={f} style={{ fontFamily: `'${f}', sans-serif` }}>{f}</option>)}
                             </select>
                         </div>
                     </div>
 
+                    {/* Logo */}
                     <div className="card" style={{ padding: 'clamp(20px, 4vw, 32px)', borderRadius: 'var(--radius-subtle)' }}>
                         <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}><Image size={16}/> Logo</h3>
                         <input ref={logoInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleLogoUpload} />
@@ -238,21 +383,21 @@ export default function BrandingPage() {
                         </div>
                     </div>
 
-                    {saveStatus && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px', border: `1px solid ${saveStatus === 'ok' ? '#10b981' : '#ef4444'}`, borderRadius: 'var(--radius-hard)', color: saveStatus === 'ok' ? '#10b981' : '#ef4444', fontSize: 13 }}>
-                            {saveStatus === 'ok' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-                            {saveStatus === 'ok' ? 'Branding saved successfully!' : 'Failed to save. Please try again.'}
-                        </div>
-                    )}
-
                     <button className="btn btn-primary mono" onClick={handleSave} disabled={saving} style={{ textTransform: 'uppercase', letterSpacing: '0.05em', padding: '16px' }}>
                         {saving ? 'Saving...' : <> <Save size={16}/> Save Branding</>}
                     </button>
                 </div>
 
-                {/* Live Preview - Slightly larger flex basis for desktop, fluid on mobile */}
+                {/* Live Preview - Fluid responsive card */}
                 <div className="card" style={{ flex: '1.2 1 320px', position: 'sticky', top: 24, padding: 0, overflow: 'hidden', borderRadius: 'var(--radius-subtle)', display: 'flex', flexDirection: 'column', minHeight: 'min(600px, 80vh)' }}>
-                    <div className="mono" style={{ padding: '16px clamp(16px, 3vw, 24px)', borderBottom: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-primary)' }}>Live Preview</div>
+                    <div className="mono" style={{ padding: '16px clamp(16px, 3vw, 24px)', borderBottom: '1px solid var(--border-color)', fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', background: 'var(--bg-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span>Live Preview</span>
+                        {parsedPalette.length > 0 && (
+                            <span style={{ fontSize: 10, color: pPrimaryColor, fontWeight: 700 }}>
+                                Custom Palette Active ({parsedPalette.length} tokens)
+                            </span>
+                        )}
+                    </div>
                     
                     <div style={{ background: pBgColor, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         
@@ -261,55 +406,67 @@ export default function BrandingPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                                 {branding.logo && <img src={branding.logo} alt="Logo" style={{ maxHeight: 32, maxWidth: 100, objectFit: 'contain' }} />}
                                 {!branding.logo && (
-                                    <div style={{ fontFamily: branding.fontHeading || 'Outfit', fontWeight: 800, fontSize: 'clamp(18px, 4vw, 24px)', color: pPrimaryColor, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
+                                    <div style={{ fontFamily: `'${headingFont}', sans-serif`, fontWeight: 800, fontSize: 'clamp(18px, 4vw, 24px)', color: pPrimaryColor, textTransform: 'uppercase', letterSpacing: '-0.03em' }}>
                                         {brandName}
                                     </div>
                                 )}
                             </div>
-                            <div className="mono" style={{ display: 'flex', gap: 'clamp(12px, 2vw, 24px)', flexWrap: 'wrap', fontFamily: branding.fontBody || 'Inter', fontSize: 11, color: pTextColor, textTransform: 'uppercase' }}>
+                            <div style={{ display: 'flex', gap: 'clamp(12px, 2vw, 24px)', flexWrap: 'wrap', fontFamily: `'${bodyFont}', sans-serif`, fontSize: 12, color: pTextColor, textTransform: 'uppercase' }}>
                                 <span style={{ cursor: 'pointer', opacity: 0.8 }}>Home</span>
                                 <span style={{ cursor: 'pointer', opacity: 0.8 }}>Services</span>
                                 <span style={{ cursor: 'pointer', opacity: 0.8 }}>Contact</span>
                             </div>
                         </div>
 
+                        {/* Custom Palette Strip in Preview */}
+                        {parsedPalette.length > 0 && (
+                            <div style={{ display: 'flex', height: 4, width: '100%' }}>
+                                {parsedPalette.map((col, idx) => (
+                                    <div key={idx} style={{ flex: 1, background: col.hex }} title={`${col.varName}: ${col.hex}`} />
+                                ))}
+                            </div>
+                        )}
+
                         {/* Preview Hero */}
                         <div style={{ padding: 'clamp(32px, 6vw, 60px) clamp(16px, 4vw, 40px)', textAlign: 'center', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', overflow: 'auto' }}>
-                            <h1 style={{ fontFamily: branding.fontHeading || 'Outfit', fontSize: 'clamp(28px, 6vw, 42px)', fontWeight: 800, marginBottom: 16, color: pTextColor, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
+                            <h1 style={{ fontFamily: `'${headingFont}', sans-serif`, fontSize: 'clamp(28px, 6vw, 42px)', fontWeight: 800, marginBottom: 16, color: pTextColor, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
                                 Welcome to {brandName}
                             </h1>
-                            <p className="mono" style={{ fontFamily: branding.fontBody || 'Inter', color: hexToRgba(pTextColor, 0.75) || pTextColor, fontSize: 'clamp(11px, 2vw, 13px)', marginBottom: 'clamp(24px, 5vw, 40px)', textTransform: 'uppercase', maxWidth: 500 }}>
+                            <p style={{ fontFamily: `'${bodyFont}', sans-serif`, color: hexToRgba(pTextColor, 0.75) || pTextColor, fontSize: 'clamp(13px, 2vw, 15px)', marginBottom: 'clamp(24px, 5vw, 40px)', textTransform: 'none', maxWidth: 500, lineHeight: 1.6 }}>
                                 {brandDescription}
                             </p>
-                            <span className="mono" style={{ background: pPrimaryColor, color: isLightHex(pPrimaryColor) ? '#111827' : '#ffffff', padding: '14px 32px', borderRadius: 'var(--radius-hard)', fontWeight: 700, fontSize: 12, fontFamily: branding.fontBody || 'Inter', textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.9 }}>
+                            <span style={{ background: pPrimaryColor, color: isLightHex(pPrimaryColor) ? '#111827' : '#ffffff', padding: '14px 32px', borderRadius: 'var(--radius-hard)', fontWeight: 700, fontSize: 13, fontFamily: `'${bodyFont}', sans-serif`, textTransform: 'uppercase', letterSpacing: '0.05em', cursor: 'pointer', transition: 'opacity 0.2s', opacity: 0.9 }}>
                                 Get Started
                             </span>
                         </div>
 
                         {/* Preview Services */}
                         <div style={{ padding: 'clamp(24px, 4vw, 40px) clamp(16px, 4vw, 32px)', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 20 }}>
-                            {previewServices.slice(0, 3).map((service, i) => (
-                                <div key={i} style={{ border: `1px solid ${hexToRgba(pPrimaryColor, 0.3)}`, borderRadius: 'var(--radius-hard)', padding: 'clamp(16px, 3vw, 24px)', textAlign: 'center', background: hexToRgba(pPrimaryColor, 0.05) }}>
-                                    <div className="mono" style={{ width: 40, height: 40, borderRadius: 'var(--radius-hard)', border: `2px solid ${pPrimaryColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: pPrimaryColor, fontWeight: 700, fontSize: 16 }}>
-                                        {i + 1}
-                                    </div>
-                                    <div style={{ fontFamily: branding.fontHeading || 'Outfit', fontWeight: 700, fontSize: 14, marginBottom: 8, color: pTextColor, textTransform: 'uppercase' }}>
-                                        {service.name}
-                                    </div>
-                                    <div className="mono" style={{ fontFamily: branding.fontBody || 'Inter', fontSize: 11, color: hexToRgba(pTextColor, 0.65) || pTextColor, textTransform: 'uppercase', marginBottom: 8 }}>
-                                        {service.description || 'Service details'}
-                                    </div>
-                                    {service.price > 0 && (
-                                        <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: pPrimaryColor }}>
-                                            ${service.price}
+                            {previewServices.slice(0, 3).map((service, i) => {
+                                const cardColor = parsedPalette.length > (i + 1) ? parsedPalette[i + 1].hex : pPrimaryColor;
+                                return (
+                                    <div key={i} style={{ border: `1px solid ${hexToRgba(cardColor, 0.3)}`, borderRadius: 'var(--radius-hard)', padding: 'clamp(16px, 3vw, 24px)', textAlign: 'center', background: hexToRgba(cardColor, 0.05) }}>
+                                        <div className="mono" style={{ width: 40, height: 40, borderRadius: 'var(--radius-hard)', border: `2px solid ${cardColor}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px', color: cardColor, fontWeight: 700, fontSize: 16 }}>
+                                            {i + 1}
                                         </div>
-                                    )}
-                                </div>
-                            ))}
+                                        <div style={{ fontFamily: `'${headingFont}', sans-serif`, fontWeight: 700, fontSize: 15, marginBottom: 8, color: pTextColor, textTransform: 'uppercase' }}>
+                                            {service.name}
+                                        </div>
+                                        <div style={{ fontFamily: `'${bodyFont}', sans-serif`, fontSize: 12, color: hexToRgba(pTextColor, 0.65) || pTextColor, textTransform: 'none', marginBottom: 8, lineHeight: 1.5 }}>
+                                            {service.description || 'Service details'}
+                                        </div>
+                                        {service.price > 0 && (
+                                            <div className="mono" style={{ fontSize: 12, fontWeight: 700, color: cardColor }}>
+                                                ${service.price}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
 
                         {/* Preview Footer */}
-                        <div className="mono" style={{ padding: '24px 32px', borderTop: `1px solid ${hexToRgba(pPrimaryColor, 0.2)}`, textAlign: 'center', fontFamily: branding.fontBody || 'Inter', fontSize: 10, color: hexToRgba(pTextColor, 0.6) || pTextColor, textTransform: 'uppercase' }}>
+                        <div style={{ padding: '24px 32px', borderTop: `1px solid ${hexToRgba(pPrimaryColor, 0.2)}`, textAlign: 'center', fontFamily: `'${bodyFont}', sans-serif`, fontSize: 11, color: hexToRgba(pTextColor, 0.6) || pTextColor }}>
                             © 2026 {brandName}. All rights reserved.
                         </div>
 

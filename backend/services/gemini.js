@@ -34,6 +34,17 @@ export async function generateWithGemini(userPrompt, branding, previousHtml = ''
         .join('\n')
     : '  (No images uploaded yet)';
 
+  // ── Format custom color palette (:root) ────────────────────────────────────
+  const customPaletteBlock = branding.userProvidedColorPallete?.trim()
+    ? `\n═══ MANDATORY CUSTOM CSS COLOR PALETTE (:root) ═══
+The user has specified the following exact CSS color palette:
+${branding.userProvidedColorPallete.trim()}
+
+CRITICAL COLOR & DESIGN DIRECTIVES:
+1. Define these EXACT custom properties inside the :root selector in the <style> tag.
+2. The entire website's visual aesthetic, backgrounds, hero gradients, buttons, cards, borders, accents, and navigation MUST strictly surround and use these exact CSS custom properties (e.g., var(--color-1), var(--color-2), etc.).\n`
+    : '';
+
   // ── Build system prompt ────────────────────────────────────────────────────
   // If the user prompt already contains detailed design system instructions from the
   // template builder, we trust those instructions completely and just add the brand data.
@@ -59,7 +70,7 @@ Company Name        : ${branding.companyName || 'My Company'}
 Company Description : ${branding.companyDescription || ''}
 Logo URL            : ${branding.logo || '(none)'}
 Favicon URL         : ${branding.favicon || '(none)'}
-
+${customPaletteBlock}
 ═══ BRAND IMAGES ═══
 ${imagesBlock}
 
@@ -92,10 +103,10 @@ Favicon URL         : ${branding.favicon || '(none)'}
   Secondary Color     : ${branding.secondaryColor || '#6d28d9'}
   Accent Color        : ${branding.accentColor || '#06b6d4'}
   Background Color    : ${branding.bgColor || branding.backgroundColor || '#1a1a2e'}
-  Text Color          : ${branding.textColor || '#111111'}
+  Text Color          : ${branding.textColor || '#ffffff'}
   Heading Font        : ${branding.fontHeading || 'Outfit'}
   Body Font           : ${branding.fontBody || 'Inter'}
-
+${customPaletteBlock}
 ═══ BRAND IMAGES ═══
 ${imagesBlock}
 

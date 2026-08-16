@@ -486,6 +486,7 @@ export async function modifyTenant(updates) {
     'primaryColor', 'secondaryColor', 'accentColor',
     'backgroundColor', 'bgColor', 'textColor',
     'fontHeading', 'fontBody',
+    'userProvidedColorPallete', 'userProvidedColorPalette',
     'logo', 'services',
   ];
 

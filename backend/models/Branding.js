@@ -31,7 +31,7 @@ const BrandingSchema = new mongoose.Schema(
     favicon:            { type: String, default: null },
     // New field names for clearer semantics
     bgColor:            { type: String, default: '#1a1a2e' },
-    textColor:          { type: String, default: '#111111' },
+    textColor:          { type: String, default: '#ffffff' },
     primaryColor:       { type: String, default: '#8b5cf6' },
     secondaryColor:     { type: String, default: '#6d28d9' },
     accentColor:        { type: String, default: '#06b6d4' },
@@ -39,6 +39,7 @@ const BrandingSchema = new mongoose.Schema(
     backgroundColor:    { type: String, default: '#1a1a2e' },
     fontHeading:        { type: String, default: 'Outfit' },
     fontBody:           { type: String, default: 'Inter' },
+    userProvidedColorPallete: { type: String, default: '' },
     images:             [ImageSchema],
     services:           [ServiceSchema],
   },
