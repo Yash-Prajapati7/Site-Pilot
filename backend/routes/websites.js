@@ -4,6 +4,7 @@ import Tenant from '../models/Tenant.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import { normalizeSlug, normalizeName } from '../utility/normalize.js';
 
 const router = express.Router();
 
@@ -36,8 +37,8 @@ router.post('/', auth, requirePermission('website.create'), async (req, res) => 
         }
 
         const { name, description, businessType } = req.body;
-        const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-        const website = await Website.create({ name, slug, description, businessType, tenant: req.tenantId });
+        const slug = normalizeSlug(name);
+        const website = await Website.create({ name: normalizeName(name), slug, description, businessType, tenant: req.tenantId });
         tenant.usage.websites += 1;
         await tenant.save();
 

@@ -5,6 +5,7 @@ import Tenant from '../models/Tenant.js';
 import Branding from '../models/Branding.js';
 import { verifyToken } from '../middleware/auth.js';
 import { getPlanConfig, getPlanLimits, hasPlanLimitMismatch, isValidPlan } from '../config/plans.js';
+import { normalizeEmail, normalizeSlug, normalizeName } from '../utility/normalize.js';
 
 const router = Router();
 
@@ -24,11 +25,16 @@ const signToken = (user) =>
 
 async function ensureTenantPlanLimits(tenantDoc) {
   if (!tenantDoc) return null;
-  if (!hasPlanLimitMismatch(tenantDoc.plan, tenantDoc.limits)) return tenantDoc;
+  let doc = tenantDoc;
+  if (typeof doc.save !== 'function') {
+    doc = await Tenant.findById(doc._id || doc);
+    if (!doc) return null;
+  }
+  if (!hasPlanLimitMismatch(doc.plan, doc.limits)) return doc;
 
-  tenantDoc.limits = getPlanLimits(tenantDoc.plan);
-  await tenantDoc.save();
-  return tenantDoc;
+  doc.limits = getPlanLimits(doc.plan);
+  await doc.save();
+  return doc;
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -48,24 +54,34 @@ router.post('/register', async (req, res) => {
     }
 
     const selectedPlan = isValidPlan(plan) ? plan : 'free';
+    const normalizedEmail = normalizeEmail(ownerEmail);
+    const normalizedSlug = normalizeSlug(tenantSlug);
+    const cleanTenantName = normalizeName(tenantName);
+    const cleanOwnerName = normalizeName(ownerName);
+
+    // Check if user email is already registered
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(409).json({ error: 'A user with this email already exists.' });
+    }
 
     // Check if slug is already taken
-    const existingTenant = await Tenant.findOne({ slug: tenantSlug.toLowerCase() });
+    const existingTenant = await Tenant.findOne({ slug: normalizedSlug });
     if (existingTenant) {
       return res.status(409).json({ error: 'Tenant slug already exists.' });
     }
 
     // Create tenant first (without ownerUserId — we'll update it after creating the user)
     const tenant = await Tenant.create({
-      name: tenantName,
-      slug: tenantSlug.toLowerCase(),
+      name: cleanTenantName,
+      slug: normalizedSlug,
       plan: selectedPlan,
     });
 
     // Create owner user (admin role)
     const user = await User.create({
-      name: ownerName,
-      email: ownerEmail,
+      name: cleanOwnerName,
+      email: normalizedEmail,
       password,
       tenantId: tenant._id,
       role: 'admin',
@@ -81,7 +97,7 @@ router.post('/register', async (req, res) => {
       companyName: tenantName,
     });
 
-    await ensureTenantPlanLimits(user.tenantId);
+    await ensureTenantPlanLimits(tenant);
 
     const token = signToken(user);
 
@@ -101,6 +117,10 @@ router.post('/register', async (req, res) => {
       token,
     });
   } catch (err) {
+    if (err.code === 11000) {
+      const field = Object.keys(err.keyPattern || {})[0] || 'field';
+      return res.status(409).json({ error: `A user or tenant with this ${field} already exists.` });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -117,8 +137,10 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required.' });
     }
 
-    // Lookup user by email (can exist in multiple tenants, but typically one per email)
-    const user = await User.findOne({ email }).populate('tenantId');
+    const normalizedEmail = normalizeEmail(email);
+
+    // Lookup user by email
+    const user = await User.findOne({ email: normalizedEmail }).populate('tenantId');
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }

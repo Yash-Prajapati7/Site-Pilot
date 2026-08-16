@@ -4,6 +4,7 @@ import Tenant from '../models/Tenant.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import { normalizeSlug, normalizeName } from '../utility/normalize.js';
 
 const router = express.Router();
 
@@ -27,9 +28,9 @@ router.post('/', auth, requirePermission('page.create'), async (req, res) => {
             return res.status(403).json({ success: false, error: 'Page limit reached. Upgrade your plan.' });
         }
         const { title, websiteId, components, generatedHTML } = req.body;
-        const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const slug = normalizeSlug(title);
         const page = await Page.create({
-            title, slug, website: websiteId, tenant: req.tenantId,
+            title: normalizeName(title), slug, website: websiteId, tenant: req.tenantId,
             components: components || [], generatedHTML: generatedHTML || '',
         });
         tenant.usage.pages += 1;

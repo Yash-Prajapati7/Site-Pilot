@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import User from '../models/User.js';
 import { verifyToken, checkTenantAccess, requireAdmin } from '../middleware/auth.js';
+import { normalizeEmail, normalizeName } from '../utility/normalize.js';
 
 const router = Router();
 
@@ -39,15 +40,17 @@ router.post('/:tenantId/users', verifyToken, checkTenantAccess, requireAdmin, as
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
-    // Check if user already exists in this tenant
-    const existingUser = await User.findOne({ email, tenantId: req.tenantId });
+    const normalizedEmail = normalizeEmail(email);
+
+    // Check if user email already exists across the platform
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
-      return res.status(409).json({ error: 'User already exists in this tenant.' });
+      return res.status(409).json({ error: 'A user with this email already exists.' });
     }
 
     const newUser = await User.create({
-      name,
-      email,
+      name: normalizeName(name),
+      email: normalizedEmail,
       password,
       tenantId: req.tenantId,
       role: role || 'editor',
@@ -58,6 +61,9 @@ router.post('/:tenantId/users', verifyToken, checkTenantAccess, requireAdmin, as
       user: { id: newUser._id, name: newUser.name, email: newUser.email, role: newUser.role },
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'A user with this email already exists.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -77,8 +83,17 @@ router.put('/:tenantId/users/:userId', verifyToken, checkTenantAccess, requireAd
 
     const { name, email, role } = req.body;
 
-    if (name !== undefined) user.name = name;
-    if (email !== undefined) user.email = email;
+    if (name !== undefined) user.name = normalizeName(name);
+    if (email !== undefined) {
+      const normalizedEmail = normalizeEmail(email);
+      if (normalizedEmail !== user.email) {
+        const existingEmail = await User.findOne({ email: normalizedEmail });
+        if (existingEmail) {
+          return res.status(409).json({ error: 'This email is already in use by another user.' });
+        }
+        user.email = normalizedEmail;
+      }
+    }
     if (role !== undefined) {
       if (!['editor', 'admin', 'viewer'].includes(role)) {
         return res.status(400).json({ error: 'Role must be "editor", "viewer", or "admin".' });
@@ -93,6 +108,9 @@ router.put('/:tenantId/users/:userId', verifyToken, checkTenantAccess, requireAd
       user: { id: user._id, name: user.name, email: user.email, role: user.role },
     });
   } catch (err) {
+    if (err.code === 11000) {
+      return res.status(409).json({ error: 'This email is already in use by another user.' });
+    }
     res.status(500).json({ error: err.message });
   }
 });

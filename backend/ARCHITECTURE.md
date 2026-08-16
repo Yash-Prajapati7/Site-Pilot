@@ -104,13 +104,13 @@ fonts, logo, images, services
 ```javascript
 {
   _id: ObjectId,
-  name: String,              // "John Doe"
-  email: String,             // unique per tenant
-  password: String,          // bcrypt hashed
-  tenant: ObjectId,          // ref: Tenant (required)
-  role: 'editor' | 'admin',  // default: 'editor'
+  name: String,                                                     // "John Doe"
+  email: String,                                                    // globally unique
+  password: String,                                                 // bcrypt hashed
+  tenantId: ObjectId,                                               // ref: Tenant (required)
+  role: 'owner' | 'admin' | 'editor' | 'developer' | 'viewer',      // default: 'editor'
   avatar: String,
-  status: 'active' | 'invited',
+  status: 'active' | 'invited' | 'suspended',
   createdAt, updatedAt
 }
 ```

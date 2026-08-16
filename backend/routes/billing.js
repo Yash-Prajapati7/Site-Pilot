@@ -10,11 +10,16 @@ const router = express.Router();
 
 async function ensureTenantPlanLimits(tenantDoc) {
     if (!tenantDoc) return null;
-    if (!hasPlanLimitMismatch(tenantDoc.plan, tenantDoc.limits)) return tenantDoc;
+    let doc = tenantDoc;
+    if (typeof doc.save !== 'function') {
+        doc = await Tenant.findById(doc._id || doc);
+        if (!doc) return null;
+    }
+    if (!hasPlanLimitMismatch(doc.plan, doc.limits)) return doc;
 
-    tenantDoc.limits = getPlanLimits(tenantDoc.plan);
-    await tenantDoc.save();
-    return tenantDoc;
+    doc.limits = getPlanLimits(doc.plan);
+    await doc.save();
+    return doc;
 }
 
 router.get('/', auth, requirePermission('billing.view'), async (req, res) => {

@@ -10,12 +10,12 @@ function getToken(req) {
 async function hydrateUser(decoded) {
   const userId = decoded.id || decoded.userId;
   if (!userId) return null;
-  return User.findById(userId).populate('tenant').populate('tenantId');
+  return User.findById(userId).populate('tenantId');
 }
 
 export function generateToken(user) {
   const userId = String(user._id);
-  const tenantId = String(user.tenant?._id || user.tenantId?._id || user.tenant || user.tenantId || '');
+  const tenantId = String(user.tenantId?._id || user.tenantId || '');
   const role = user.role || 'editor';
   return jwt.sign({ id: userId, userId, tenantId, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
 }
@@ -32,7 +32,7 @@ export async function auth(req, res, next) {
       return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     }
 
-    const tenantId = user.tenant?._id || user.tenantId?._id || user.tenant || user.tenantId;
+    const tenantId = user.tenantId?._id || user.tenantId;
     req.user = user;
     req.userId = String(user._id);
     req.userRole = user.role;
@@ -60,7 +60,7 @@ export async function verifyToken(req, res, next) {
       const user = await hydrateUser(decoded);
       if (!user) return res.status(403).json({ error: 'Invalid token.' });
       userId = String(user._id);
-      tenantId = String(user.tenant?._id || user.tenantId?._id || user.tenant || user.tenantId);
+      tenantId = String(user.tenantId?._id || user.tenantId);
       role = user.role;
       req.user = user;
     }

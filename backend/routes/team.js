@@ -4,11 +4,12 @@ import Tenant from '../models/Tenant.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission, getPermissions } from '../middleware/rbac.js';
+import { normalizeEmail, normalizeName } from '../utility/normalize.js';
 
 const router = express.Router();
 
 router.get('/', auth, async (req, res) => {
-    const members = await User.find({ tenant: req.tenantId }).select('-password');
+    const members = await User.find({ tenantId: req.tenantId }).select('-password');
     const tenant = await Tenant.findById(req.tenantId);
     res.json({ success: true, data: { members, limit: tenant.limits.teamMembers } });
 });
@@ -16,21 +17,24 @@ router.get('/', auth, async (req, res) => {
 router.post('/invite', auth, requirePermission('team.invite'), async (req, res) => {
     try {
         const tenant = await Tenant.findById(req.tenantId);
-        const memberCount = await User.countDocuments({ tenant: req.tenantId });
+        const memberCount = await User.countDocuments({ tenantId: req.tenantId });
         if (tenant.limits.teamMembers !== -1 && memberCount >= tenant.limits.teamMembers) {
             return res.status(403).json({ success: false, error: 'Team member limit reached. Upgrade your plan.' });
         }
 
         const { name, email, role } = req.body;
-        const existing = await User.findOne({ email, tenant: req.tenantId });
-        if (existing) return res.status(400).json({ success: false, error: 'Email already registered' });
+        if (!email) return res.status(400).json({ success: false, error: 'Email is required' });
+
+        const normalizedEmail = normalizeEmail(email);
+        const existing = await User.findOne({ email: normalizedEmail });
+        if (existing) return res.status(400).json({ success: false, error: 'A user with this email is already registered' });
 
         const user = await User.create({
-            name,
-            email,
+            name: name ? normalizeName(name) : normalizedEmail.split('@')[0],
+            email: normalizedEmail,
             password: 'invited_' + Date.now(),
             role: role || 'editor',
-            tenant: req.tenantId,
+            tenantId: req.tenantId,
             status: 'invited',
         });
 
@@ -53,7 +57,7 @@ router.post('/invite', auth, requirePermission('team.invite'), async (req, res) 
 router.put('/:id/role', auth, requirePermission('team.changeRole'), async (req, res) => {
     const { role } = req.body;
     const user = await User.findOneAndUpdate(
-        { _id: req.params.id, tenant: req.tenantId },
+        { _id: req.params.id, tenantId: req.tenantId },
         { role },
         { new: true }
     );
@@ -65,7 +69,7 @@ router.delete('/:id', auth, requirePermission('team.remove'), async (req, res) =
     if (req.params.id === req.user._id.toString()) {
         return res.status(400).json({ success: false, error: 'Cannot remove yourself' });
     }
-    const user = await User.findOneAndDelete({ _id: req.params.id, tenant: req.tenantId });
+    const user = await User.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
     res.json({ success: true, message: 'Team member removed' });
 });
