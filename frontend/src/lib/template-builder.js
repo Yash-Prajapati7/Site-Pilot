@@ -20,7 +20,7 @@ export const PREBUILT_TEMPLATES = [
       'CTA strip (centered heading + one button)',
       'Mega footer (4-column: brand + 3 link groups)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: PROFESSIONAL MINIMALIST
 
 Color Rules:
@@ -69,7 +69,7 @@ Components:
       'CTA (glow button, gradient background block)',
       'Footer (minimal dark with social links)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: GLASSMORPHISM / CASUAL
 
 Color Rules:
@@ -116,7 +116,7 @@ Animations:
       'Testimonials (box-style, bordered)',
       'Footer (pure black bg, white text, link columns)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: NEO-BRUTALISM / FUNKY
 
 Color Rules:
@@ -165,7 +165,7 @@ Specific Patterns:
       'CTA block (dark + gold border + ghost button)',
       'Luxury footer (4-column: brand + 3 link groups, gold accents)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: LUXURY DARK / ELEGANT
 
 Color Rules:
@@ -218,7 +218,7 @@ Animations:
       'CTA (soft neumorphic action card)',
       'Footer (light, minimal, soft)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: NEUMORPHISM / PLAYFUL
 
 Color Rules — ABSOLUTE:
@@ -269,7 +269,7 @@ Specific Patterns:
       'Contact form card (rounded 22px white card on dark band, rectangular inputs, near-black pill submit)',
       'Dark footer newsletter (#17171c background, coral "AI moves fast" tag, email subscribe field, multi-column links)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: COHERE / ENTERPRISE EDITORIAL AI COMMAND CENTER
 
 Philosophy & Atmosphere:
@@ -395,7 +395,7 @@ Strict Rules (Cohere):
       'Pre-footer CTA band (96px padding, 36px serif headline weight 300, single ink pill CTA)',
       'Editorial footer (off-white #f5f5f5, 5-column link list, quiet body typography)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: ELEVENLABS / PASTEL EDITORIAL VOICE AI
 
 Philosophy & Atmosphere:
@@ -520,7 +520,7 @@ Strict Rules (ElevenLabs):
       'Feature cards (cream cards #f7f4ed, 12px radius, 1px solid #eceae4 border, no heavy drop shadows)',
       'Full-width warm footer (16px radius container, 1px solid #eceae4 border, multi-column link grid, soft bottom wash)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: LOVABLE / WARM PARCHMENT & HUMANIST ANALOG
 
 Philosophy & Atmosphere:
@@ -632,7 +632,7 @@ Strict Rules (Lovable):
       'Contributor community mosaic (band of 40px circular contributor avatars over warm textured canvas)',
       'Global footer (surface-deep #000000, off-white text, multi-column links, divider)',
     ],
-    geminiInstructions: `
+    designInstructions: `
 DESIGN SYSTEM: REPLICATE / ART ZINE & ML PLAYGROUND
 
 Philosophy & Atmosphere:
@@ -737,6 +737,17 @@ Strict Rules (Replicate):
   - DO NOT add drop shadows on cream surfaces — elevation is strictly colour-blocking.`,
   },
 ];
+
+// Scaffold backwards-compatibility getter so template.geminiInstructions still works seamlessly
+PREBUILT_TEMPLATES.forEach(t => {
+  if (t.geminiInstructions === undefined) {
+    Object.defineProperty(t, 'geminiInstructions', {
+      get() { return this.designInstructions; },
+      enumerable: false,
+      configurable: true,
+    });
+  }
+});
 
 // ── Component Library ─────────────────────────────────────────────────────────
 export const COMPONENT_LIBRARY = {
@@ -932,7 +943,7 @@ export function compilePayload({ mode, templateId, selections, userPrompt }) {
       `╔══════════════════════════════════════════════════════════╗`,
       `║  DESIGN SYSTEM: ${template.name.toUpperCase()} — ${template.subtitle.toUpperCase()}`,
       `╚══════════════════════════════════════════════════════════╝`,
-      template.geminiInstructions.trim(),
+      (template.designInstructions || template.geminiInstructions).trim(),
       '',
       `╔══════════════════════════════════════════════════════════╗`,
       `║  PAGE SECTIONS (include ALL, in this exact order)        ║`,
