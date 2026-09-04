@@ -5,7 +5,7 @@
 ### 1. Prerequisites
 - Node.js 18+
 - MongoDB (local or Atlas)
-- Google Gemini API key
+- AI Gateway API key (`AI_GATEWAY_API_KEY`)
 - Cloudinary account
 
 ### 2. Environment Setup
@@ -24,8 +24,8 @@ MONGO_URI=mongodb://localhost:27017/site-pilot
 # JWT
 JWT_SECRET=your_super_secret_key_change_this_in_prod
 
-# AI (Gemini)
-GEMINI_API_KEY=sk-proj-...
+# AI (Vercel AI SDK / AI Gateway)
+AI_GATEWAY_API_KEY=your_ai_gateway_api_key
 
 # Image Hosting (Cloudinary)
 CLOUDINARY_CLOUD_NAME=your_cloud_name
@@ -242,10 +242,9 @@ mongo
 - tenantId must match the URL param
 - User's token tenantId must match URL tenantId
 
-### Gemini API Error
-- Check `GEMINI_API_KEY` is valid and has quota
+### AI Generation / API Key Error
+- Check `AI_GATEWAY_API_KEY` is valid and has quota
 - Verify internet connection
-- Check API is enabled in Google Cloud Console
 
 ### Cloudinary Upload Fails
 - Verify credentials in `.env`
@@ -275,7 +274,7 @@ backend/
 ├── models/          (Mongoose schemas)
 ├── routes/          (API endpoints)
 ├── middleware/      (Auth, validation)
-├── services/        (Gemini, Cloudinary)
+├── services/        (AI, Cloudinary)
 ├── config/          (Database config)
 ├── server.js        (Express entry point)
 ├── package.json
@@ -298,13 +297,15 @@ mongo "mongodb://localhost:27017/site-pilot"
 npm run dev 2>&1 | tee logs.txt
 ```
 
-### Test Gemini API
+### Test Vercel AI SDK
 ```javascript
-import { GoogleGenerativeAI } from '@google/generative-ai';
-const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = client.getGenerativeModel({ model: 'gemini-2.0-flash' });
-const result = await model.generateContent('Hello');
-console.log(result.response.text());
+import { generateText } from 'ai';
+const result = await generateText({
+  model: 'meta/muse-spark-1.2-contributor',
+  prompt: 'Hello',
+  reasoning: 'high',
+});
+console.log(result.text);
 ```
 
 ---

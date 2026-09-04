@@ -3,7 +3,7 @@ import Project from '../models/Project.js';
 import Branding from '../models/Branding.js';
 import VersionHistory from '../models/VersionHistory.js';
 import { verifyToken, checkTenantAccess, requireEditor } from '../middleware/auth.js';
-import { generateWithGemini } from '../services/gemini.js';
+import { generateWithAISDK } from '../services/ai.js';
 
 const router = Router();
 
@@ -124,7 +124,7 @@ router.delete('/:tenantId/:projectId', verifyToken, checkTenantAccess, async (re
 
 // ══════════════════════════════════════════════════════════════════════════════
 // POST /api/projects/:tenantId/:projectId/generate
-// AI website generation via Gemini (any user in tenant can generate)
+// AI website generation via Vercel AI SDK (any user in tenant can generate)
 // Body: { prompt }
 // ══════════════════════════════════════════════════════════════════════════════
 router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, requireEditor, async (req, res) => {
@@ -145,6 +145,13 @@ router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, re
       return res.status(403).json({ error: 'Access denied.' });
     }
 
+    console.log(`\n------------------------------------------------------`);
+    console.log(`[PROJECTS_ROUTE] Incoming AI generation request`);
+    console.log(`[PROJECTS_ROUTE] Tenant ID   : ${req.tenantId}`);
+    console.log(`[PROJECTS_ROUTE] Project ID  : ${project._id} (${project.name})`);
+    console.log(`[PROJECTS_ROUTE] Prompt      : "${prompt.substring(0, 120)}${prompt.length > 120 ? '...' : ''}"`);
+    console.log(`------------------------------------------------------`);
+
     // Fetch tenant branding — auto-create if missing (e.g. seeded users without branding)
     let branding = await Branding.findOne({ tenantId: req.tenantId });
     if (!branding) {
@@ -156,8 +163,9 @@ router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, re
       });
     }
 
-    // Call Gemini, passing previous version for styling consistency
-    const htmlCode = await generateWithGemini(prompt, branding, previousHtml);
+    // Call AI SDK with meta/muse-spark-1.2-contributor, passing previous version for styling consistency
+    console.log(`[PROJECTS_ROUTE] Calling AI SDK for project "${project.name}"...`);
+    const htmlCode = await generateWithAISDK(prompt, branding, previousHtml);
 
     // Calculate version number
     const versionCount = await VersionHistory.countDocuments({ projectId: project._id });
@@ -198,8 +206,11 @@ router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, re
     project.activeVersionId = version._id;
     await project.save();
 
+    console.log(`[PROJECTS_ROUTE] Sending response for version v${versionNumber} (${htmlCode.length} chars)`);
+
     res.status(201).json({ ok: true, version });
   } catch (err) {
+    console.error(`[PROJECTS_ROUTE] [ERROR] Generation error: ${err.message}`);
     res.status(500).json({ error: err.message });
   }
 });

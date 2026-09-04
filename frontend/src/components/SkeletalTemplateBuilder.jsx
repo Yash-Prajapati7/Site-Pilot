@@ -50,16 +50,78 @@ function TemplateWireframe({ id }) {
       btnStyle: { background: '#6C63FF', borderRadius: 20, border: 'none' },
       heavyBorder: false, orbs: false,
     },
+    cohere: {
+      bg: '#FFFFFF', heroBg: '#FFFFFF',
+      navBg: '#FFFFFF', navBorder: '#D9D9DD',
+      hasAnnouncementBar: true,
+      accent: '#003C33', accent2: '#FF7759', text: '#17171C', muted: '#75758A',
+      cardBg: '#EEECE7', cardBorder: '#D9D9DD', cardRadius: 8,
+      cardShadow: 'none', footerBg: '#17171C',
+      btnStyle: { background: '#17171C', borderRadius: 99, border: 'none' },
+      heavyBorder: false, orbs: false,
+      isCohere: true,
+    },
+    elevenlabs: {
+      bg: '#F5F5F5', heroBg: '#F5F5F5',
+      navBg: '#F5F5F5', navBorder: '#E7E5E4',
+      accent: '#292524', accent2: '#A7E5D3', accent3: '#F4C5A8', text: '#0C0A09', muted: '#777169',
+      cardBg: '#FFFFFF', cardBorder: '#E7E5E4', cardRadius: 10,
+      cardShadow: '0 2px 8px rgba(0,0,0,0.04)', footerBg: '#F5F5F5',
+      btnStyle: { background: '#292524', borderRadius: 99, border: 'none' },
+      heavyBorder: false, orbs: true,
+      isElevenLabs: true,
+    },
+    lovable: {
+      bg: '#F7F4ED', heroBg: '#F7F4ED',
+      navBg: '#F7F4ED', navBorder: '#ECEAE4',
+      accent: '#1C1C1C', text: '#1C1C1C', muted: '#5F5F5D',
+      cardBg: '#F7F4ED', cardBorder: '#ECEAE4', cardRadius: 6,
+      cardShadow: 'none', footerBg: '#F7F4ED',
+      btnStyle: {
+        background: '#1C1C1C', borderRadius: 3, border: 'none',
+        boxShadow: 'inset 0 0.5px 0 rgba(255,255,255,0.2), inset 0 0 0 0.5px rgba(0,0,0,0.2)'
+      },
+      heavyBorder: false, orbs: false,
+      isLovable: true,
+    },
+    replicate: {
+      bg: '#F9F7F3', heroBg: '#EA2804',
+      navBg: '#F9F7F3', navBorder: 'rgba(32,32,32,0.12)',
+      accent: '#EA2804', text: '#202020', heroText: '#FFFFFF', muted: '#646464',
+      cardBg: '#FFFFFF', cardBorder: 'rgba(32,32,32,0.12)', cardRadius: 6,
+      cardShadow: 'none', footerBg: '#000000',
+      btnStyle: { background: '#EA2804', borderRadius: 99, border: 'none' },
+      heavyBorder: false, orbs: false,
+      isReplicate: true,
+    },
   };
   const c = cfg[id] || cfg.professional;
 
   return (
     <div style={{ width: '100%', height: '100%', background: c.bg, position: 'relative', overflow: 'hidden', borderRadius: 'inherit' }}>
+      {/* Ambient Gradient Orbs */}
       {c.orbs && (
         <>
-          <div style={{ position: 'absolute', top: '5%', left: '10%', width: 70, height: 70, borderRadius: '50%', background: `${c.accent}25`, filter: 'blur(24px)', pointerEvents: 'none' }} />
-          <div style={{ position: 'absolute', bottom: '20%', right: '5%', width: 50, height: 50, borderRadius: '50%', background: `${c.accent2 || c.accent}25`, filter: 'blur(18px)', pointerEvents: 'none' }} />
+          <div style={{
+            position: 'absolute', top: '2%', left: '8%', width: 70, height: 70,
+            borderRadius: '50%',
+            background: c.isElevenLabs ? '#A7E5D3' : `${c.accent}25`,
+            filter: 'blur(20px)', opacity: c.isElevenLabs ? 0.6 : 1, pointerEvents: 'none'
+          }} />
+          <div style={{
+            position: 'absolute', bottom: '15%', right: '5%', width: 55, height: 55,
+            borderRadius: '50%',
+            background: c.isElevenLabs ? '#F4C5A8' : `${c.accent2 || c.accent}25`,
+            filter: 'blur(18px)', opacity: c.isElevenLabs ? 0.6 : 1, pointerEvents: 'none'
+          }} />
         </>
+      )}
+
+      {/* Cohere Announcement Bar */}
+      {c.hasAnnouncementBar && (
+        <div style={{ height: 6, background: '#000000', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ width: 28, height: 1.5, background: '#FFFFFF', opacity: 0.8 }} />
+        </div>
       )}
 
       {/* Nav */}
@@ -68,7 +130,7 @@ function TemplateWireframe({ id }) {
         borderBottom: c.heavyBorder ? `2px solid ${c.navBorder}` : `1px solid ${c.navBorder}`,
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 10px',
       }}>
-        <div style={{ width: 30, height: 5, background: c.accent, borderRadius: c.heavyBorder ? 0 : 3 }} />
+        <div style={{ width: 30, height: 5, background: c.isReplicate ? '#EA2804' : c.accent, borderRadius: c.heavyBorder ? 0 : (c.cardRadius || 2) }} />
         <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
           {[12, 10, 12].map((w, i) => (
             <div key={i} style={{ width: w, height: 3, background: `${c.muted}80`, borderRadius: 2 }} />
@@ -82,38 +144,148 @@ function TemplateWireframe({ id }) {
       {/* Hero */}
       <div style={{
         height: 56, background: c.heroBg, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', gap: 5, padding: '0 12px',
-        borderBottom: c.heavyBorder ? `2px solid ${c.navBorder}` : 'none',
+        alignItems: 'center', justifyContent: 'center', gap: 4, padding: '0 12px',
+        borderBottom: c.heavyBorder ? `2px solid ${c.navBorder}` : (c.isReplicate ? 'none' : 'none'),
+        position: 'relative', zIndex: 1,
       }}>
-        <div style={{ width: 40, height: 4, background: `${c.accent}70`, borderRadius: 99 }} />
-        <div style={{ width: '78%', height: 7, background: c.text, borderRadius: c.heavyBorder ? 0 : 3 }} />
-        <div style={{ width: '55%', height: 3.5, background: `${c.muted}90`, borderRadius: 2 }} />
+        <div style={{ width: 38, height: 4, background: c.isReplicate ? '#FFFFFF' : (c.accent2 ? c.accent2 : `${c.accent}70`), borderRadius: 99, opacity: 0.9 }} />
+        <div style={{ width: '82%', height: 7, background: c.heroText || c.text, borderRadius: c.heavyBorder ? 0 : 2 }} />
+        <div style={{ width: '56%', height: 3.5, background: c.isReplicate ? 'rgba(255,255,255,0.75)' : `${c.muted}90`, borderRadius: 2 }} />
         <div style={{ display: 'flex', gap: 5, marginTop: 2 }}>
           <div style={{ width: 32, height: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', ...c.btnStyle }}>
             <div style={{ width: 16, height: 2, background: c.btnStyle.background === 'transparent' ? c.accent : '#fff', borderRadius: 2 }} />
           </div>
           <div style={{
             width: 26, height: 10, background: 'transparent', borderRadius: c.cardRadius,
-            border: c.heavyBorder ? `2px solid ${c.text}` : `1px solid ${c.accent}`,
+            border: c.isReplicate ? '1px solid rgba(255,255,255,0.8)' : (c.heavyBorder ? `2px solid ${c.text}` : `1px solid ${c.accent}`),
             boxShadow: c.heavyBorder ? `2px 2px 0 ${c.text}` : 'none',
           }} />
         </div>
       </div>
 
-      {/* Feature Cards */}
-      <div style={{ display: 'flex', gap: 5, padding: '8px 10px' }}>
-        {[1, 2, 3].map(i => (
-          <div key={i} style={{
-            flex: 1, height: 42, background: c.cardBg,
-            border: c.heavyBorder ? `2px solid ${c.cardBorder}` : `1px solid ${c.cardBorder}`,
-            borderRadius: c.cardRadius, boxShadow: c.cardShadow,
-            display: 'flex', flexDirection: 'column', padding: '5px 6px', gap: 3,
-          }}>
-            <div style={{ width: 12, height: 5, background: c.accent, borderRadius: c.heavyBorder ? 0 : 2 }} />
-            <div style={{ width: '85%', height: 3, background: `${c.text}80`, borderRadius: 2 }} />
-            <div style={{ width: '65%', height: 2.5, background: `${c.muted}60`, borderRadius: 2 }} />
-          </div>
-        ))}
+      {/* Feature Cards / Middle Section */}
+      <div style={{ display: 'flex', gap: 5, padding: '8px 10px', position: 'relative', zIndex: 1 }}>
+        {c.isCohere ? (
+          <>
+            {/* Cohere Product Card (Soft stone) */}
+            <div style={{
+              flex: 1.1, height: 42, background: '#EEECE7',
+              border: '1px solid #D9D9DD', borderRadius: 6,
+              display: 'flex', flexDirection: 'column', padding: '5px 6px', gap: 3,
+            }}>
+              <div style={{ width: 14, height: 4, background: '#17171C', borderRadius: 2 }} />
+              <div style={{ width: '80%', height: 3, background: '#212121', borderRadius: 1.5 }} />
+              <div style={{ width: '50%', height: 2.5, background: '#93939F', borderRadius: 1.5 }} />
+            </div>
+            {/* Cohere Deep Green Dark Band Card */}
+            <div style={{
+              flex: 1.2, height: 42, background: '#003C33',
+              borderRadius: 6, padding: '5px 6px', display: 'flex', flexDirection: 'column', gap: 3,
+            }}>
+              <div style={{ width: 12, height: 3.5, background: '#FF7759', borderRadius: 99 }} />
+              <div style={{ width: '85%', height: 3, background: '#FFFFFF', borderRadius: 1.5 }} />
+              <div style={{ width: '60%', height: 2.5, background: 'rgba(255,255,255,0.6)', borderRadius: 1.5 }} />
+            </div>
+          </>
+        ) : c.isElevenLabs ? (
+          <>
+            {/* ElevenLabs White Card */}
+            <div style={{
+              flex: 1, height: 42, background: '#FFFFFF',
+              border: '1px solid #E7E5E4', borderRadius: 8,
+              display: 'flex', flexDirection: 'column', padding: '5px 6px', gap: 3,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            }}>
+              <div style={{ width: 10, height: 4, background: '#292524', borderRadius: 99 }} />
+              <div style={{ width: '75%', height: 3, background: '#292524', borderRadius: 1.5 }} />
+              <div style={{ width: '55%', height: 2.5, background: '#777169', borderRadius: 1.5 }} />
+            </div>
+            {/* ElevenLabs Audio Waveform Card */}
+            <div style={{
+              flex: 1.2, height: 42, background: '#FFFFFF',
+              border: '1px solid #E7E5E4', borderRadius: 8,
+              display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            }}>
+              <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#F0EFED', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 4, height: 4, background: '#292524', borderRadius: 1 }} />
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
+                {[4, 9, 14, 8, 12, 5, 10, 6].map((h, i) => (
+                  <div key={i} style={{ width: 1.5, height: h, background: '#292524', borderRadius: 1 }} />
+                ))}
+              </div>
+            </div>
+          </>
+        ) : c.isLovable ? (
+          <>
+            {/* Lovable AI Chat Box Preview */}
+            <div style={{
+              flex: 2, height: 42, background: '#F7F4ED',
+              border: '1px solid #ECEAE4', borderRadius: 6,
+              display: 'flex', flexDirection: 'column', padding: '5px 7px', gap: 4,
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ width: '60%', height: 3, background: '#1C1C1C', borderRadius: 1.5 }} />
+                <div style={{ width: 8, height: 8, borderRadius: 99, background: '#1C1C1C' }} />
+              </div>
+              <div style={{ display: 'flex', gap: 3 }}>
+                {[16, 20, 14].map((w, i) => (
+                  <div key={i} style={{ width: w, height: 5, borderRadius: 99, border: '1px solid #ECEAE4', background: '#F7F4ED' }} />
+                ))}
+              </div>
+            </div>
+            {/* Lovable Card */}
+            <div style={{
+              flex: 1, height: 42, background: '#F7F4ED',
+              border: '1px solid #ECEAE4', borderRadius: 6,
+              display: 'flex', flexDirection: 'column', padding: '5px 6px', gap: 3,
+            }}>
+              <div style={{ width: 14, height: 4, background: '#1C1C1C', borderRadius: 1.5 }} />
+              <div style={{ width: '80%', height: 2.5, background: '#5F5F5D', borderRadius: 1.5 }} />
+            </div>
+          </>
+        ) : c.isReplicate ? (
+          <>
+            {/* Replicate Model Card */}
+            <div style={{
+              flex: 1, height: 42, background: '#FFFFFF',
+              border: '1px solid rgba(32,32,32,0.12)', borderRadius: 6,
+              display: 'flex', flexDirection: 'column', padding: '4px 5px', gap: 2.5,
+            }}>
+              <div style={{ width: '100%', height: 14, background: '#F3F0E8', borderRadius: 4 }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ width: 22, height: 3, background: '#202020', borderRadius: 1.5 }} />
+                <div style={{ width: 5, height: 5, borderRadius: 99, background: '#2B9A66' }} />
+              </div>
+            </div>
+            {/* Replicate Dark Code Well */}
+            <div style={{
+              flex: 1.2, height: 42, background: '#202020',
+              borderRadius: 6, padding: '4px 6px', display: 'flex', flexDirection: 'column', gap: 2.5,
+            }}>
+              <div style={{ display: 'flex', gap: 3, borderBottom: '1px solid rgba(255,255,255,0.15)', paddingBottom: 2 }}>
+                <div style={{ width: 12, height: 2, background: '#EA2804', borderRadius: 1 }} />
+                <div style={{ width: 10, height: 2, background: 'rgba(255,255,255,0.4)', borderRadius: 1 }} />
+              </div>
+              <div style={{ width: '85%', height: 2.5, background: 'rgba(255,255,255,0.7)', borderRadius: 1 }} />
+              <div style={{ width: '60%', height: 2.5, background: 'rgba(255,255,255,0.5)', borderRadius: 1 }} />
+            </div>
+          </>
+        ) : (
+          [1, 2, 3].map(i => (
+            <div key={i} style={{
+              flex: 1, height: 42, background: c.cardBg,
+              border: c.heavyBorder ? `2px solid ${c.cardBorder}` : `1px solid ${c.cardBorder}`,
+              borderRadius: c.cardRadius, boxShadow: c.cardShadow,
+              display: 'flex', flexDirection: 'column', padding: '5px 6px', gap: 3,
+            }}>
+              <div style={{ width: 12, height: 5, background: c.accent, borderRadius: c.heavyBorder ? 0 : 2 }} />
+              <div style={{ width: '85%', height: 3, background: `${c.text}80`, borderRadius: 2 }} />
+              <div style={{ width: '65%', height: 2.5, background: `${c.muted}60`, borderRadius: 2 }} />
+            </div>
+          ))
+        )}
       </div>
 
       {/* Footer */}
@@ -121,11 +293,15 @@ function TemplateWireframe({ id }) {
         position: 'absolute', bottom: 0, left: 0, right: 0, height: 18,
         background: c.footerBg,
         borderTop: c.heavyBorder ? `2px solid ${c.navBorder}` : `1px solid ${c.cardBorder}`,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1,
       }}>
         <div style={{ display: 'flex', gap: 7 }}>
           {[1, 2, 3, 4].map(i => (
-            <div key={i} style={{ width: i === 1 ? 24 : 14, height: 2.5, background: `${i === 1 ? c.accent : c.muted}60`, borderRadius: 2 }} />
+            <div key={i} style={{
+              width: i === 1 ? 24 : 14, height: 2.5,
+              background: i === 1 ? (c.isReplicate ? '#EA2804' : (c.accent2 || c.accent)) : `${c.muted}60`,
+              borderRadius: 2
+            }} />
           ))}
         </div>
       </div>
@@ -575,7 +751,7 @@ export default function SkeletalTemplateBuilder({ onGenerate }) {
 
         <div>
             <div style={S.sectionLabel}>
-              <span>5 Design Systems — Pick One</span>
+              <span>{PREBUILT_TEMPLATES.length} Design Systems — Pick One</span>
             </div>
             <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
               {PREBUILT_TEMPLATES.map(template => {

@@ -367,7 +367,7 @@ export async function removePageById(id) {
 // ─── AI Website Generation ────────────────────────────────────────────────────
 
 /**
- * Generate a website via Gemini on the backend and save as a new version.
+ * Generate a website via Vercel AI SDK on the backend and save as a new version.
  * @param {string} prompt - User's generation/modification prompt
  * @param {array} history - Edit history (unused in backend currently)
  * @param {string} projectId - Project ID
@@ -383,6 +383,7 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
     const { data: resData } = await apiClient.post(
       `/ai/generate`,
       { prompt, previousHtml, websiteId: projectId },
+      { timeout: 300000 } // 5 mins dedicated timeout for deep reasoning generation
     );
 
     // Backend returns { ok: true, version: { versionNumber, htmlCode } }
@@ -399,12 +400,16 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
       },
       generation: resData.generation || {
         target: 'frontend',
-        provider: 'gemini',
-        model: 'gemini-3-flash-preview',
+        provider: 'vercel-ai',
+        model: 'meta/muse-spark-1.2-contributor',
+        reasoning: 'high',
       },
     };
   } catch (err) {
-    return { ok: false, error: err.response?.data?.error || 'AI generation failed' };
+    if (err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout')) {
+      return { ok: false, error: 'Request timed out waiting for the reasoning model response. Please try again.' };
+    }
+    return { ok: false, error: err.response?.data?.error || err.message || 'AI generation failed' };
   }
 }
 
@@ -414,7 +419,11 @@ export async function generateBackendForWebsite(projectId) {
   if (!projectId) return { ok: false, error: 'Project ID is required' };
 
   try {
-    const { data: resData } = await apiClient.post(`/site-backends/${projectId}/generate`);
+    const { data: resData } = await apiClient.post(
+      `/site-backends/${projectId}/generate`,
+      {},
+      { timeout: 180000 }
+    );
     return {
       ok: true,
       backend: resData.data,
@@ -425,7 +434,10 @@ export async function generateBackendForWebsite(projectId) {
       },
     };
   } catch (err) {
-    return { ok: false, error: err.response?.data?.error || 'Backend generation failed' };
+    if (err.code === 'ECONNABORTED' || err.message?.toLowerCase().includes('timeout')) {
+      return { ok: false, error: 'Backend generation timed out. Please retry.' };
+    }
+    return { ok: false, error: err.response?.data?.error || err.message || 'Backend generation failed' };
   }
 }
 

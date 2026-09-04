@@ -30,9 +30,20 @@ router.get('/:websiteId', auth, async (req, res) => {
 
 router.post('/:websiteId/generate', auth, async (req, res) => {
     try {
+        console.log(`\n------------------------------------------------------`);
+        console.log(`[DYNAMIC_BACKEND] Generation request received for website: ${req.params.websiteId}`);
+        console.log(`[DYNAMIC_BACKEND] Tenant ID: ${req.tenantId}`);
+        console.log(`------------------------------------------------------`);
+
         const website = await Website.findOne({ _id: req.params.websiteId, tenant: req.tenantId });
-        if (!website) return res.status(404).json({ success: false, error: 'Website not found' });
-        if (!website.generatedHTML) return res.status(400).json({ success: false, error: 'Website has no HTML. Generate the frontend first.' });
+        if (!website) {
+            console.warn(`[DYNAMIC_BACKEND] [WARN] Website ${req.params.websiteId} not found`);
+            return res.status(404).json({ success: false, error: 'Website not found' });
+        }
+        if (!website.generatedHTML) {
+            console.warn(`[DYNAMIC_BACKEND] [WARN] Website has no generated HTML yet`);
+            return res.status(400).json({ success: false, error: 'Website has no HTML. Generate the frontend first.' });
+        }
 
         let backend = await SiteBackend.findOne({ website: website._id });
         if (!backend) {
@@ -42,6 +53,7 @@ router.post('/:websiteId/generate', auth, async (req, res) => {
         backend.status = 'generating';
         await backend.save();
 
+        console.log(`[DYNAMIC_BACKEND] Sending HTML (${website.generatedHTML.length} chars) to Groq agentFlow...`);
         const schema = await analyzeAndGenerateBackendSchema(website.generatedHTML, website.businessType);
 
         const dataMap = {};
@@ -59,6 +71,8 @@ router.post('/:websiteId/generate', auth, async (req, res) => {
         backend.lastGenerated = new Date();
         await backend.save();
 
+        console.log(`[DYNAMIC_BACKEND] Successfully generated & saved dynamic backend with ${schema.endpoints?.length || 0} endpoints.`);
+
         res.json({
             success: true,
             generation: {
@@ -69,7 +83,7 @@ router.post('/:websiteId/generate', auth, async (req, res) => {
             data: backend,
         });
     } catch (err) {
-        console.error('Backend generation error:', err);
+        console.error('[DYNAMIC_BACKEND] [ERROR] Backend generation error:', err.message);
         res.status(500).json({ success: false, error: err.message });
     }
 });

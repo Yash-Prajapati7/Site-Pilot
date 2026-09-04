@@ -1,6 +1,6 @@
 import express from 'express';
 import fs from 'fs';
-import { generateWithGemini } from '../services/gemini.js';
+import { generateWithAISDK } from '../services/ai.js';
 import Website from '../models/Website.js';
 import Page from '../models/Page.js';
 import Tenant from '../models/Tenant.js';
@@ -22,11 +22,20 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
     try {
         const tenant = await Tenant.findById(req.tenantId);
         if (tenant.limits.aiGenerations !== -1 && tenant.usage.aiGenerations >= tenant.limits.aiGenerations) {
+            console.warn(`[AI_ROUTE] [WARN] Generation limit reached for tenant: ${req.tenantId}`);
             return res.status(403).json({ success: false, error: 'AI generation limit reached. Upgrade your plan.' });
         }
 
         const { prompt, websiteId, previousHtml } = req.body;
         if (!prompt) return res.status(400).json({ success: false, error: 'Prompt is required' });
+
+        console.log(`\n------------------------------------------------------`);
+        console.log(`[AI_ROUTE] Incoming AI generation request received`);
+        console.log(`[AI_ROUTE] Tenant ID   : ${req.tenantId}`);
+        console.log(`[AI_ROUTE] Website ID  : ${websiteId || '(new website)'}`);
+        console.log(`[AI_ROUTE] Prompt      : "${prompt.substring(0, 120)}${prompt.length > 120 ? '...' : ''}"`);
+        console.log(`[AI_ROUTE] Context     : ${previousHtml ? 'Editing existing HTML' : 'New generation'}`);
+        console.log(`------------------------------------------------------`);
 
         let existingHTML = previousHtml || '';
         let website = null;
@@ -50,7 +59,8 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         if (website?.name && !branding.companyName) branding.companyName = website.name;
         if (website?.description && !branding.companyDescription) branding.companyDescription = website.description;
 
-        const rawHTML = await generateWithGemini(prompt, branding, existingHTML);
+        console.log(`[AI_ROUTE] Calling AI model (meta/muse-spark-1.2-contributor) via Vercel AI SDK...`);
+        const rawHTML = await generateWithAISDK(prompt, branding, existingHTML);
         const fullHTML = cleanGeneratedHTML(rawHTML);
 
         let versionNumber = 1;
@@ -116,7 +126,7 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
 
             website.chatHistory.push(
                 { role: 'user', content: prompt, ts: Date.now() },
-                { role: 'ai', content: `✅ Website generated! (v${versionNumber})`, ts: Date.now() }
+                { role: 'ai', content: `Website generated! (v${versionNumber})`, ts: Date.now() }
             );
 
             website.promptHistory.push({ prompt });
@@ -136,12 +146,15 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             ipAddress: req.ip,
         });
 
+        console.log(`[AI_ROUTE] Sending response to client (Version: v${versionNumber}, HTML size: ${fullHTML.length} chars)`);
+
         res.json({
             ok: true,
             generation: {
                 target: 'frontend',
-                provider: 'gemini',
-                model: 'gemini-3-flash-preview',
+                provider: 'vercel-ai',
+                model: 'meta/muse-spark-1.2-contributor',
+                reasoning: 'high',
             },
             version: {
                 versionNumber,
@@ -159,12 +172,13 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         });
 
     } catch (err) {
-        fs.appendFileSync('gemini-error-log.txt', `\n==== ERROR ====\nMessage: ${err.message}\nStack: ${err.stack}\n`);
-        const userError = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED')
+        console.error(`[AI_ROUTE] [ERROR] Generation error: ${err.message}`);
+        fs.appendFileSync('ai-error-log.txt', `\n==== ERROR ====\nMessage: ${err.message}\nStack: ${err.stack}\n`);
+        const userError = err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.message?.includes('rate limit')
             ? 'AI API rate limit reached. Please wait a moment and try again.'
-            : err.message?.includes('API_KEY')
-                ? 'Invalid API key. Check your .env configuration.'
-                : 'AI generation failed. Please try again.';
+            : err.message?.includes('API_KEY') || err.message?.includes('apiKey') || err.message?.includes('unauthorized') || err.message?.includes('401')
+                ? 'Invalid API key or unauthorized. Check your AI Gateway / API key configuration in .env.'
+                : `AI generation failed: ${err.message || 'Please try again.'}`;
         res.status(500).json({ ok: false, error: userError });
     }
 });

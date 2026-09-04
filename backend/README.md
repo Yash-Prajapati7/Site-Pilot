@@ -39,7 +39,7 @@ The backend is a Node.js and Express service for SitePilot. It powers authentica
 - bcryptjs
 - Multer
 - Cloudinary integration
-- Gemini and Groq SDK integrations
+- Vercel AI SDK (meta/muse-spark-1.2-contributor) and Groq SDK integrations
 
 ## Local development
 1. Install dependencies:

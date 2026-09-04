@@ -75,5 +75,5 @@ app.use((err, _req, res, _next) => {
 
 // ── Start server ─────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
-  console.log(`✓ Site Pilot backend running on http://localhost:${PORT}`);
+  console.log(`[INFO] Site Pilot backend running on http://localhost:${PORT}`);
 });

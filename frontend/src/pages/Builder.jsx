@@ -17,7 +17,7 @@ const STARTER_PROMPTS = [
 ];
 
 const DEFAULT_PIPELINE = {
-    frontend: { provider: 'gemini', model: 'gemini-3-flash-preview', status: 'idle' },
+    frontend: { provider: 'vercel-ai', model: 'meta/muse-spark-1.2-contributor', status: 'idle' },
     backend: { provider: 'groq', model: 'openai/gpt-oss-120b', status: 'idle' },
 };
 
@@ -330,7 +330,7 @@ export default function BuilderPage() {
         setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true, id: aiMsgId, timestamp: new Date() }]);
 
         try {
-            // Call the real backend → Gemini API, pass previous version for styling consistency
+            // Call the real backend → Vercel AI SDK, pass previous version for styling consistency
             setPipeline(prev => ({ ...prev, frontend: { ...prev.frontend, status: 'generating' } }));
             const result = await generateAIWebsite(aiPrompt, history, id, overrideHTML || generatedHTML);
 
@@ -351,8 +351,8 @@ export default function BuilderPage() {
             setPipeline(prev => ({
                 ...prev,
                 frontend: {
-                    provider: result.generation?.provider || 'gemini',
-                    model: result.generation?.model || 'gemini-3-flash-preview',
+                    provider: result.generation?.provider || 'vercel-ai',
+                    model: result.generation?.model || 'meta/muse-spark-1.2-contributor',
                     status: 'ready',
                 },
                 backend: { ...prev.backend, status: 'queued' }

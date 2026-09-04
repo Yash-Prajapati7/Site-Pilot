@@ -1,19 +1,15 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-
-const client = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+import { generateText } from 'ai';
 
 /**
  * Build a comprehensive system prompt from user input + branding data,
- * then call Gemini and return raw HTML.
- * 
- * The userPrompt may already contain detailed styling instructions from the template builder.
- * If it does, we preserve those and add branding data. Otherwise, we use generic guidelines.
+ * then call the Vercel AI SDK with meta/muse-spark-1.2-contributor at high reasoning.
  * 
  * @param {string} userPrompt - User's generation/modification request
  * @param {object} branding - Brand configuration
  * @param {string} previousHtml - Previous version's HTML (if editing) for styling consistency
+ * @returns {Promise<string>} Generated raw HTML
  */
-export async function generateWithGemini(userPrompt, branding, previousHtml = '') {
+export async function generateWithAISDK(userPrompt, branding, previousHtml = '') {
   // ── Detect if prompt already has design system instructions ────────────────
   const hasDesignSystem = /DESIGN SYSTEM:|PROFESSIONAL|GLASSMORPHISM|NEO-BRUTALISM|LUXURY DARK|NEUMORPHISM|COHERE|ELEVENLABS|LOVABLE|REPLICATE|COMPONENT SPECIFICATIONS/i.test(userPrompt);
 
@@ -45,12 +41,7 @@ CRITICAL COLOR & DESIGN DIRECTIVES:
 2. The entire website's visual aesthetic, backgrounds, hero gradients, buttons, cards, borders, accents, and navigation MUST strictly surround and use these exact CSS custom properties (e.g., var(--color-1), var(--color-2), etc.).\n`
     : '';
 
-  // ── Build system prompt ────────────────────────────────────────────────────
-  // If the user prompt already contains detailed design system instructions from the
-  // template builder, we trust those instructions completely and just add the brand data.
-  // Otherwise, we use a generic set of guidelines.
-  
-  // If there's a previous version, include it as context for styling consistency
+  // ── Build prompt ───────────────────────────────────────────────────────────
   const previousVersionContext = previousHtml
     ? `\n═══ PREVIOUS VERSION (for styling reference) ═══\nUse this as a reference to maintain design consistency, color scheme, typography, and layout patterns:\n\`\`\`html\n${previousHtml}\n\`\`\`\n(Full previous version provided above)\n\n`
     : '';
@@ -132,16 +123,35 @@ ${previousVersionContext}
 ═══ USER REQUEST ═══
 ${userPrompt}`;
 
+  console.log(`[AI_SDK] Calling AI model meta/muse-spark-1.2-contributor with high reasoning...`);
+  const startTime = Date.now();
   try {
-    const model = client.getGenerativeModel({ model: 'gemini-2.5-flash' });
-    const result = await model.generateContent(systemPrompt);
-    let html = result.response.text();
+    const result = await generateText({
+      model: 'meta/muse-spark-1.2-contributor',
+      prompt: systemPrompt,
+      reasoning: 'high',
+    });
 
-    // Strip markdown code fences if Gemini wraps the output
-    html = html.replace(/^```html?\s*\n?/i, '').replace(/\n?```\s*$/i, '');
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.log(`[AI_SDK] Model response received in ${elapsed}s (${(result.text || '').length} chars).`);
+
+    let html = result.text || '';
+
+    // Strip markdown code fences if output is wrapped
+    html = html.replace(/^```html?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
 
     return html;
   } catch (err) {
-    throw new Error(`Gemini API Error: ${err.message}`);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+    console.error(`[AI_SDK] [ERROR] Model call failed after ${elapsed}s: ${err.message}`);
+    throw new Error(`AI SDK Error: ${err.message}`);
   }
+}
+
+/**
+ * @deprecated Use generateWithAISDK instead.
+ */
+export async function generateWithGemini(userPrompt, branding, previousHtml = '') {
+  console.warn('[DEPRECATED] generateWithGemini is deprecated. Forwarding to generateWithAISDK.');
+  return generateWithAISDK(userPrompt, branding, previousHtml);
 }

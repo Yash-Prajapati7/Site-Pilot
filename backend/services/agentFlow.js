@@ -42,22 +42,55 @@ Rules:
 - Return ONLY the JSON, no markdown fences, no explanation`;
 
 export async function analyzeAndGenerateBackendSchema(html, businessType = 'general') {
+    const startTime = Date.now();
+    console.log(`\n[GROQ_SCHEMA_AGENT] [Stage 1] Starting HTML analysis for dynamic endpoints (${(html || '').length} chars, type: ${businessType})...`);
+
+    const htmlSnippet = (html || '').substring(0, 8000);
+    const messages = [
+        { role: 'system', content: AGENT_PROMPT },
+        { role: 'user', content: `Business type: ${businessType}\n\nHTML to analyze:\n${htmlSnippet}` },
+    ];
+
     try {
-        const result = await groq.chat.completions.create({
-            model: 'openai/gpt-oss-120b',
-            messages: [
-                { role: 'system', content: AGENT_PROMPT },
-                { role: 'user', content: `Business type: ${businessType}\n\nHTML to analyze:\n${html.substring(0, 15000)}` },
-            ],
-            temperature: 0.3,
-            max_completion_tokens: 8192,
-        });
+        console.log(`[GROQ_SCHEMA_AGENT] [Stage 2] Calling Groq (openai/gpt-oss-120b)...`);
+        let result;
+        try {
+            result = await groq.chat.completions.create({
+                model: 'openai/gpt-oss-120b',
+                messages,
+                temperature: 0.3,
+                max_completion_tokens: 2048,
+            });
+        } catch (modelErr) {
+            if (modelErr.message?.includes('413') || modelErr.message?.includes('rate_limit') || modelErr.message?.includes('TPM')) {
+                console.warn(`[GROQ_SCHEMA_AGENT] [WARN] gpt-oss-120b rate limited, falling back to openai/gpt-oss-20b...`);
+                result = await groq.chat.completions.create({
+                    model: 'openai/gpt-oss-20b',
+                    messages,
+                    temperature: 0.3,
+                    max_completion_tokens: 2048,
+                });
+            } else {
+                throw modelErr;
+            }
+        }
+
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`[GROQ_SCHEMA_AGENT] [Stage 3] Received Groq response in ${elapsed}s. Parsing JSON schema...`);
 
         let text = result.choices[0]?.message?.content?.trim() || '';
         text = text.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?\s*```\s*$/i, '').trim();
-        return JSON.parse(text);
+        const parsed = JSON.parse(text);
+
+        const epCount = parsed.endpoints?.length || 0;
+        const colCount = parsed.collections?.length || 0;
+        console.log(`[GROQ_SCHEMA_AGENT] [Stage 4] Successfully generated dynamic schema (${epCount} endpoints, ${colCount} collections).`);
+
+        return parsed;
     } catch (err) {
-        console.error('Backend schema generation error:', err.message);
+        const elapsed = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.error(`[GROQ_SCHEMA_AGENT] [ERROR] Schema generation error after ${elapsed}s:`, err.message);
+        console.log(`[GROQ_SCHEMA_AGENT] [INFO] Using default fallback backend schema.`);
         return getDefaultSchema();
     }
 }

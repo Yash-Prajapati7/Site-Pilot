@@ -4,7 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api'
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 60000, // 60s — generous for AI generation calls
+  timeout: 180000, // 180s (3 mins) for reasoning models and large generations
 });
 
 // ── Attach JWT token to every outgoing request ───────────────────────────────

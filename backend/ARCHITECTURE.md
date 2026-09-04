@@ -47,7 +47,7 @@ fonts, logo, images, services
 ### 4. Project & Generation Flow
 1. User (editor or admin) creates a Project
 2. Admin sets up Branding (colors, fonts, logo, services)
-3. User generates website via AI (Gemini) using the prompt
+3. User generates website via AI (Vercel AI SDK with `meta/muse-spark-1.2-contributor` at high reasoning) using the prompt
 4. Each generation creates a new immutable Version
 5. User can rollback to previous versions
 
@@ -348,7 +348,7 @@ fonts, logo, images, services
 ### AI Generation
 | Method | Endpoint | Body | Auth | Role | Description |
 |--------|----------|------|------|------|-------------|
-| `POST` | `/api/ai/generate` | `{prompt, websiteId?, previousHtml?}` | ✓ | any | Generate website HTML via Gemini |
+| `POST` | `/api/ai/generate` | `{prompt, websiteId?, previousHtml?}` | ✓ | any | Generate website HTML via Vercel AI SDK |
 
 **Response includes version number, generated HTML, and generation metadata.**
 
@@ -673,7 +673,7 @@ import { getBranding, updateBranding } from '@/services/brandingService';
 
 - [ ] Update `JWT_SECRET` to strong random value
 - [ ] Use MongoDB Atlas (not local)
-- [ ] Configure environment variables: MONGO_URI, GEMINI_API_KEY, CLOUDINARY_*, JWT_SECRET
+- [ ] Configure environment variables: MONGO_URI, AI_GATEWAY_API_KEY, CLOUDINARY_*, JWT_SECRET
 - [ ] Enable HTTPS on frontend and backend
 - [ ] Set appropriate CORS origin
 - [ ] Configure rate limiting on API
@@ -691,7 +691,7 @@ import { getBranding, updateBranding } from '@/services/brandingService';
 PORT=5000
 MONGO_URI=mongodb://localhost:27017/site-pilot
 JWT_SECRET=your_super_secret_key_change_me_in_production
-GEMINI_API_KEY=your_gemini_api_key
+AI_GATEWAY_API_KEY=your_ai_gateway_api_key
 CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
