@@ -1,5 +1,16 @@
 import mongoose from 'mongoose';
 
+export async function closeDB() {
+  try {
+    if (mongoose.connection.readyState !== 0) {
+      await mongoose.connection.close();
+      console.log('[INFO] MongoDB connection closed gracefully.');
+    }
+  } catch (err) {
+    console.error('[ERROR] Error while closing MongoDB connection:', err.message);
+  }
+}
+
 export default async function connectDB() {
   try {
     const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI;
@@ -13,3 +24,4 @@ export default async function connectDB() {
     process.exit(1);
   }
 }
+

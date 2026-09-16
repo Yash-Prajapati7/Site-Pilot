@@ -2,7 +2,7 @@ import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import multer from 'multer';
-import connectDB from './config/db.js';
+import connectDB, { closeDB } from './config/db.js';
 
 // ── Route imports ────────────────────────────────────────────────────────────
 import authRoutes     from './routes/auth.js';
@@ -74,6 +74,30 @@ app.use((err, _req, res, _next) => {
 });
 
 // ── Start server ─────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[INFO] Site Pilot backend running on http://localhost:${PORT}`);
 });
+
+// ── Graceful shutdown (e.g. Ctrl + C) ─────────────────────────────────────────
+async function handleShutdown(signal) {
+  console.log(`\n[INFO] Received ${signal}. Closing MongoDB connection and shutting down...`);
+  try {
+    await closeDB();
+    server.close(() => {
+      console.log('[INFO] HTTP server closed cleanly.');
+      process.exit(0);
+    });
+
+    // Fallback timer in case keep-alive connections delay process termination
+    setTimeout(() => {
+      console.warn('[WARN] Forcefully exiting after shutdown timeout.');
+      process.exit(0);
+    }, 1500).unref();
+  } catch (err) {
+    console.error('[ERROR] Error during graceful shutdown:', err);
+    process.exit(1);
+  }
+}
+
+process.on('SIGINT', () => handleShutdown('SIGINT'));
+process.on('SIGTERM', () => handleShutdown('SIGTERM'));
