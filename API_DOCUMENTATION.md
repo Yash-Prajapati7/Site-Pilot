@@ -260,7 +260,9 @@ Create a new website.
 ---
 
 ### PUT /websites/:id
-Update an existing website.
+Update an existing website. If `name` is updated, the website's URL `slug` is automatically regenerated and deduplicated to match the new site name.
+
+**Permissions:** `website.edit` (`owner`, `admin`, `editor`)
 
 **Request:**
 ```json
@@ -278,9 +280,11 @@ Update an existing website.
   "data": {
     "_id": "67a1b2c3d4e5f6g7h8i9j0k4",
     "name": "Updated Store Name",
-    "slug": "e-commerce-store",
+    "slug": "updated-store-name",
     "description": "Updated description",
     "status": "published",
+    "templateId": "cohere",
+    "designStyle": null,
     "updatedAt": "2026-03-30T11:00:00.000Z"
   }
 }
@@ -419,16 +423,35 @@ GET /api/websites/view/portfolio-site HTTP/1.1
 ## AI Generation Endpoints
 
 ### POST /ai/generate
-Generate website HTML using AI based on a prompt.
+Generate website HTML using the AI reasoning model. The frontend sends only the clean user prompt and optional design selections; the backend dynamically stitches the system instructions, design system specifications, tenant branding schema, and previous HTML context before invoking the model. The full user prompt is stored without truncation in version history, chat history, and prompt history.
+
+**Permissions:** `ai.generate` (`owner`, `admin`, `editor`, `developer`)
 
 **Request:**
 ```json
 {
   "prompt": "Build a modern SaaS landing page with pricing section and testimonials",
   "websiteId": "67a1b2c3d4e5f6g7h8i9j0k3",
-  "previousHtml": "<html>...</html>"
+  "templateId": "cohere",
+  "mode": "prebuilt",
+  "selections": {
+    "navbar": "navbar-1",
+    "hero": "hero-2",
+    "features": "features-1",
+    "footer": "footer-1"
+  },
+  "previousHtml": "<!DOCTYPE html><html>...</html>"
 }
 ```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `prompt` | String | Yes | Clean prompt describing the desired website or iterative changes. |
+| `websiteId` | String | No | Target website ID. If provided, persists the generated code, creates a version snapshot with the full prompt, and updates chat/prompt history. |
+| `templateId` | String | No | Prebuilt design system template ID (`cohere`, `elevenlabs`, `professional`, `casual`, `funky`, `elegant`, `playful`, `lovable`, `replicate`). If omitted, reuses existing website template or applies brand theme. |
+| `mode` | String | No | Generation mode: `prebuilt` (default), `custom`, or `plain`. |
+| `selections` | Object | No | Custom component variant selections (used when `mode` is `custom`). |
+| `previousHtml` | String | No | Previous HTML code for styling continuity during iterative edits. |
 
 **Response (200):**
 ```json
@@ -436,13 +459,41 @@ Generate website HTML using AI based on a prompt.
   "ok": true,
   "generation": {
     "target": "frontend",
-    "provider": "gemini",
-    "model": "gemini-3-flash-preview"
+    "provider": "vercel-ai",
+    "model": "meta/muse-spark-1.3-contributor",
+    "reasoning": "high"
   },
   "version": {
     "versionNumber": 2,
     "htmlCode": "<!DOCTYPE html><html>...</html>"
+  },
+  "tenant": {
+    "plan": "starter",
+    "limits": {
+      "websites": 3,
+      "pages": 10,
+      "aiGenerations": 50,
+      "customDomains": 1
+    },
+    "usage": {
+      "websites": 1,
+      "pages": 1,
+      "aiGenerations": 2,
+      "customDomains": 0
+    }
+  },
+  "usage": {
+    "used": 2,
+    "limit": 50
   }
+}
+```
+
+**Response (400):**
+```json
+{
+  "success": false,
+  "error": "Prompt is required"
 }
 ```
 

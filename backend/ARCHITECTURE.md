@@ -347,8 +347,7 @@ fonts, logo, images, services
 
 ### AI Generation
 | Method | Endpoint | Body | Auth | Role | Description |
-|--------|----------|------|------|------|-------------|
-| `POST` | `/api/ai/generate` | `{prompt, websiteId?, previousHtml?}` | ✓ | any | Generate website HTML via Vercel AI SDK |
+| `POST` | `/api/ai/generate` | `{prompt, websiteId?, previousHtml?, templateId?, mode?, selections?}` | ✓ | owner/admin/editor/developer | Generate website HTML via AI SDK with backend prompt stitching |
 
 **Response includes version number, generated HTML, and generation metadata.**
 

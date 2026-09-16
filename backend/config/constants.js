@@ -151,7 +151,7 @@ export const ALL_GENERATION_MODES = Object.freeze(Object.values(GENERATION_MODE)
 export const AI_CONFIG = Object.freeze({
   TARGET: 'frontend',
   PROVIDER: 'vercel-ai',
-  MODEL: 'meta/muse-spark-1.3-contributor',
+  MODEL: 'inception/mercury-2.5',
   REASONING: 'high',
 });
 
