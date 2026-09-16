@@ -8,6 +8,8 @@ const websiteSchema = new mongoose.Schema({
     description: { type: String, default: '' },
     status: { type: String, enum: ALL_CONTENT_STATUSES, default: CONTENT_STATUS.DRAFT },
     businessType: { type: String, default: 'general' },
+    templateId: { type: String, default: null },
+    designStyle: { type: String, default: null },
     generatedHTML: { type: String, default: '' },
     settings: {
         favicon: { type: String, default: '' },

@@ -374,7 +374,7 @@ export async function removePageById(id) {
  * @param {string} previousHtml - Previous version's HTML for styling consistency
  * Returns { ok, html, versionNumber, usage } or { ok: false, error }.
  */
-export async function generateAIWebsite(prompt, history = [], projectId, previousHtml = '') {
+export async function generateAIWebsite(prompt, history = [], projectId, previousHtml = '', options = {}) {
   const tenantId = getTenantId();
   if (!tenantId) return { ok: false, error: 'Not authenticated' };
   if (!projectId) return { ok: false, error: 'Project ID is required for generation' };
@@ -382,7 +382,14 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
   try {
     const { data: resData } = await apiClient.post(
       `/ai/generate`,
-      { prompt, previousHtml, websiteId: projectId },
+      {
+        prompt,
+        previousHtml,
+        websiteId: projectId,
+        templateId: options.templateId,
+        mode: options.mode,
+        selections: options.selections,
+      },
       { timeout: 300000 } // 5 mins dedicated timeout for deep reasoning generation
     );
 

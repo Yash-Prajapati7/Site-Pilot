@@ -8,7 +8,7 @@ import Branding from '../models/Branding.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
-import { ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
+import { ENTITY_TYPE, ACTIVITY_ACTION, GENERATION_MODE, AI_CONFIG, CONTENT_STATUS } from '../config/constants.js';
 
 const router = express.Router();
 
@@ -27,13 +27,14 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             return res.status(403).json({ success: false, error: 'AI generation limit reached. Upgrade your plan.' });
         }
 
-        const { prompt, websiteId, previousHtml } = req.body;
+        const { prompt, websiteId, previousHtml, templateId, mode, selections } = req.body;
         if (!prompt) return res.status(400).json({ success: false, error: 'Prompt is required' });
 
         console.log(`\n------------------------------------------------------`);
         console.log(`[AI_ROUTE] Incoming AI generation request received`);
         console.log(`[AI_ROUTE] Tenant ID   : ${req.tenantId}`);
         console.log(`[AI_ROUTE] Website ID  : ${websiteId || '(new website)'}`);
+        console.log(`[AI_ROUTE] Template ID : ${templateId || '(none)'}`);
         console.log(`[AI_ROUTE] Prompt      : "${prompt.substring(0, 120)}${prompt.length > 120 ? '...' : ''}"`);
         console.log(`[AI_ROUTE] Context     : ${previousHtml ? 'Editing existing HTML' : 'New generation'}`);
         console.log(`------------------------------------------------------`);
@@ -44,6 +45,8 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             website = await Website.findOne({ _id: websiteId, tenant: req.tenantId });
             if (website && !existingHTML) existingHTML = website.generatedHTML || '';
         }
+
+        const effectiveTemplateId = templateId || website?.templateId || null;
 
         const dbBranding = await Branding.findOne({ tenantId: req.tenantId });
         const branding = dbBranding ? dbBranding.toObject() : {
@@ -60,8 +63,15 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         if (website?.name && !branding.companyName) branding.companyName = website.name;
         if (website?.description && !branding.companyDescription) branding.companyDescription = website.description;
 
-        console.log(`[AI_ROUTE] Calling AI model (meta/muse-spark-1.2-contributor) via Vercel AI SDK...`);
-        const rawHTML = await generateWithAISDK(prompt, branding, existingHTML);
+        console.log(`[AI_ROUTE] Calling AI model (${AI_CONFIG.MODEL}) via ${AI_CONFIG.PROVIDER}...`);
+        const rawHTML = await generateWithAISDK({
+            prompt,
+            templateId: effectiveTemplateId,
+            mode: mode || GENERATION_MODE.PREBUILT,
+            selections,
+            branding,
+            previousHtml: existingHTML,
+        });
         const fullHTML = cleanGeneratedHTML(rawHTML);
 
         let versionNumber = 1;
@@ -70,7 +80,7 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
                 website.versions.push({
                     version: website.currentVersion || 1,
                     html: website.generatedHTML,
-                    prompt: prompt.substring(0, 200),
+                    prompt: prompt, // Store full user prompt without truncation
                     label: `v${website.currentVersion || 1}`,
                     createdAt: new Date(),
                 });
@@ -110,7 +120,7 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
                 }
                 existingPage.title = existingPage.title || 'Home';
                 existingPage.generatedHTML = modifiedHTML;
-                existingPage.status = website.status === 'published' ? 'published' : (existingPage.status || 'draft');
+                existingPage.status = website.status === CONTENT_STATUS.PUBLISHED ? CONTENT_STATUS.PUBLISHED : (existingPage.status || CONTENT_STATUS.DRAFT);
                 await existingPage.save();
             } else {
                 await Page.create({
@@ -120,9 +130,13 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
                     tenant: req.tenantId,
                     components: [],
                     generatedHTML: modifiedHTML,
-                    status: website.status === 'published' ? 'published' : 'draft',
+                    status: website.status === CONTENT_STATUS.PUBLISHED ? CONTENT_STATUS.PUBLISHED : CONTENT_STATUS.DRAFT,
                 });
                 tenant.usage.pages += 1;
+            }
+
+            if (templateId) {
+                website.templateId = templateId;
             }
 
             website.chatHistory.push(
@@ -152,10 +166,10 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         res.json({
             ok: true,
             generation: {
-                target: 'frontend',
-                provider: 'vercel-ai',
-                model: 'meta/muse-spark-1.2-contributor',
-                reasoning: 'high',
+                target: AI_CONFIG.TARGET,
+                provider: AI_CONFIG.PROVIDER,
+                model: AI_CONFIG.MODEL,
+                reasoning: AI_CONFIG.REASONING,
             },
             version: {
                 versionNumber,

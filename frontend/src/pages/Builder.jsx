@@ -304,10 +304,8 @@ export default function BuilderPage() {
         const text = promptText || prompt;
         const activePayload = injectedPayload || templatePayload;
         const userEnteredPrompt = text?.trim() || activePayload?.userPrompt?.trim() || '';
-        const aiPrompt = (activePayload && messages.length === 0)
-            ? activePayload.enhancedPrompt
-            : (text || activePayload?.enhancedPrompt);
-        if (!aiPrompt?.trim() || streaming) return;
+        const promptToSend = userEnteredPrompt || 'Generate website';
+        if (!promptToSend?.trim() || streaming) return;
 
         // Ensure the project ID is valid (guard for edge cases)
         if (!id) {
@@ -315,7 +313,7 @@ export default function BuilderPage() {
             return;
         }
 
-        const displayText = userEnteredPrompt || 'Generate website';
+        const displayText = promptToSend;
         const userMsg = { 
             role: 'user', 
             content: displayText, 
@@ -332,7 +330,12 @@ export default function BuilderPage() {
         try {
             // Call the real backend → Vercel AI SDK, pass previous version for styling consistency
             setPipeline(prev => ({ ...prev, frontend: { ...prev.frontend, status: 'generating' } }));
-            const result = await generateAIWebsite(aiPrompt, history, id, overrideHTML || generatedHTML);
+            const templateOptions = {
+                templateId: activePayload?.templateId,
+                mode: activePayload?.mode,
+                selections: activePayload?.selections,
+            };
+            const result = await generateAIWebsite(promptToSend, history, id, overrideHTML || generatedHTML, templateOptions);
 
             if (!result.ok) {
                 setMessages(prev => prev.map(m => m.id === aiMsgId

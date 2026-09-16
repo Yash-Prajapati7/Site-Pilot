@@ -138,6 +138,23 @@ export const ACTIVITY_ACTION = Object.freeze({
 
 export const ALL_ACTIVITY_ACTIONS = Object.freeze(Object.values(ACTIVITY_ACTION));
 
+// Generation Modes
+export const GENERATION_MODE = Object.freeze({
+  PREBUILT: 'prebuilt',
+  CUSTOM: 'custom',
+  PLAIN: 'plain',
+});
+
+export const ALL_GENERATION_MODES = Object.freeze(Object.values(GENERATION_MODE));
+
+// AI Model & Provider Configuration
+export const AI_CONFIG = Object.freeze({
+  TARGET: 'frontend',
+  PROVIDER: 'vercel-ai',
+  MODEL: 'meta/muse-spark-1.3-contributor',
+  REASONING: 'high',
+});
+
 // Auth & Security Constants
 export const AUTH_CONSTANTS = Object.freeze({
   TOKEN_EXPIRY: '7d',
