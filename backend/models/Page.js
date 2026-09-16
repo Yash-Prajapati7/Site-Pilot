@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ALL_CONTENT_STATUSES, CONTENT_STATUS } from '../config/constants.js';
 
 const pageSchema = new mongoose.Schema({
     title: { type: String, required: true, trim: true },
@@ -7,7 +8,7 @@ const pageSchema = new mongoose.Schema({
     tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
     components: [{ type: mongoose.Schema.Types.Mixed }],
     generatedHTML: { type: String, default: '' },
-    status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft' },
+    status: { type: String, enum: ALL_CONTENT_STATUSES, default: CONTENT_STATUS.DRAFT },
     version: { type: Number, default: 1 },
     versions: [{
         version: Number,

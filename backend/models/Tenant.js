@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
-import { getPlanLimits } from '../config/plans.js';
+import { getPlanLimits, PLAN_IDS } from '../config/plans.js';
+import { ALL_TENANT_STATUSES, TENANT_STATUS, DEFAULT_PLAN } from '../config/constants.js';
 
 const TenantSchema = new mongoose.Schema(
   {
@@ -7,7 +8,7 @@ const TenantSchema = new mongoose.Schema(
     slug:        { type: String, required: true, unique: true, lowercase: true, trim: true },
     description: { type: String, default: '' },
     logo:        { type: String, default: null },
-    plan:        { type: String, enum: ['free', 'starter', 'professional', 'enterprise'], default: 'free' },
+    plan:        { type: String, enum: PLAN_IDS, default: DEFAULT_PLAN },
     owner:       { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     // Owner may be assigned after tenant creation during registration flow,
     // so make this optional to avoid validation errors when creating the
@@ -42,7 +43,7 @@ const TenantSchema = new mongoose.Schema(
       customDomains: { type: Number, default: 0 },
       teamMembers: { type: Number, default: 1 },
     },
-    status:      { type: String, enum: ['active', 'inactive', 'suspended', 'cancelled'], default: 'active' },
+    status:      { type: String, enum: ALL_TENANT_STATUSES, default: TENANT_STATUS.ACTIVE },
   },
   { timestamps: true }
 );

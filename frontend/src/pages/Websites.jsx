@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCurrentUser, fetchWebsites, createWebsite, removeWebsiteById } from '../services/api';
-import { Globe, FileText, Globe2, Trash2 } from 'lucide-react';
+import { Globe, FileText, Globe2, Trash2, Pencil } from 'lucide-react';
+import RenameWebsiteModal from '../components/RenameWebsiteModal';
 
 function formatLimit(limit) {
     return limit === -1 ? 'Unlimited' : String(limit);
@@ -19,9 +20,11 @@ export default function WebsitesPage() {
     const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [newSite, setNewSite] = useState({ name: '', slug: '' });
+    const [renamingSite, setRenamingSite] = useState(null);
     const [creating, setCreating] = useState(false);
     const [error, setError] = useState('');
     const canManageWebsites = ['admin', 'owner'].includes(user?.role);
+    const canEditWebsite = ['admin', 'owner', 'editor'].includes(user?.role);
     const websiteLimit = user?.tenant?.limits?.websites ?? 1;
     const pageLimit = user?.tenant?.limits?.pages ?? 5;
     const aiLimit = user?.tenant?.limits?.aiGenerations ?? 10;
@@ -123,6 +126,16 @@ export default function WebsitesPage() {
                         </div>
                         <div style={{ display: 'flex', gap: 8 }}>
                             <button className="btn btn-primary btn-sm mono" style={{ flex: 1, textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}`)}>Manage</button>
+                            {canEditWebsite && (
+                                <button
+                                    className="btn btn-ghost btn-sm mono"
+                                    style={{ textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4 }}
+                                    onClick={() => setRenamingSite(site)}
+                                    title="Rename Website"
+                                >
+                                    <Pencil size={13} /> Rename
+                                </button>
+                            )}
                             {user?.role !== 'viewer' && <button className="btn btn-ghost btn-sm mono" style={{ textTransform: 'uppercase' }} onClick={() => navigate(`/dashboard/websites/${site.id}/builder`)}>Builder</button>}
                             {canManageWebsites && <button className="btn btn-ghost btn-sm mono" style={{ color: 'var(--error)', borderColor: 'var(--error)' }} onClick={() => deleteSite(site.id)} title="Delete"><Trash2 size={16} /></button>}
                         </div>
@@ -165,6 +178,15 @@ export default function WebsitesPage() {
                     </div>
                 </div>
             )}
+
+            <RenameWebsiteModal
+                isOpen={Boolean(renamingSite)}
+                website={renamingSite}
+                onClose={() => setRenamingSite(null)}
+                onSuccess={(updatedSite) => {
+                    setWebsites(prev => prev.map(w => w.id === updatedSite.id ? { ...w, ...updatedSite } : w));
+                }}
+            />
         </div>
     );
 }

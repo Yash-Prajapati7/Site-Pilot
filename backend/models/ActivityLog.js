@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { ALL_ENTITY_TYPES } from '../config/constants.js';
 
 const activityLogSchema = new mongoose.Schema({
     user: {
@@ -8,7 +9,7 @@ const activityLogSchema = new mongoose.Schema({
     },
     tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
     action: { type: String, required: true },
-    entityType: { type: String, enum: ['website', 'page', 'component', 'deployment', 'user', 'tenant', 'billing', 'domain'], required: true },
+    entityType: { type: String, enum: ALL_ENTITY_TYPES, required: true },
     entityId: { type: mongoose.Schema.Types.ObjectId },
     details: { type: mongoose.Schema.Types.Mixed, default: {} },
     ipAddress: { type: String, default: '' },

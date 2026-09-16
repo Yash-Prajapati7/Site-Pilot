@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { ALL_ROLES, ROLES, ALL_USER_STATUSES, USER_STATUS } from '../config/constants.js';
 
 const UserSchema = new mongoose.Schema(
   {
@@ -7,9 +8,9 @@ const UserSchema = new mongoose.Schema(
     email:    { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
     password: { type: String, required: true, minlength: 6 },
     tenantId: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true, index: true },
-    role:     { type: String, enum: ['owner', 'admin', 'editor', 'developer', 'viewer'], default: 'editor' },
+    role:     { type: String, enum: ALL_ROLES, default: ROLES.EDITOR },
     avatar:   { type: String, default: null },
-    status:   { type: String, enum: ['active', 'invited', 'suspended'], default: 'active' },
+    status:   { type: String, enum: ALL_USER_STATUSES, default: USER_STATUS.ACTIVE },
     lastLogin:{ type: Date },
   },
   { timestamps: true }

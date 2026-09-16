@@ -1,27 +1,5 @@
-const ROLE_HIERARCHY = { owner: 4, admin: 3, editor: 2, developer: 1, viewer: 0 };
+import { PERMISSIONS, ROLE_HIERARCHY } from '../config/constants.js';
 
-const PERMISSIONS = {
-    'website.create': ['owner', 'admin'],
-    'website.edit': ['owner', 'admin', 'editor'],
-    'website.delete': ['owner', 'admin'],
-    'website.publish': ['owner', 'admin'],
-    'page.create': ['owner', 'admin', 'editor'],
-    'page.edit': ['owner', 'admin', 'editor'],
-    'page.delete': ['owner', 'admin'],
-    'page.publish': ['owner', 'admin'],
-    'ai.generate': ['owner', 'admin', 'editor', 'developer'],
-    'team.invite': ['owner', 'admin'],
-    'team.remove': ['owner', 'admin'],
-    'team.changeRole': ['owner'],
-    'billing.view': ['owner', 'admin'],
-    'billing.manage': ['owner'],
-    'domain.manage': ['owner', 'admin'],
-    'branding.manage': ['owner', 'admin'],
-    'analytics.view': ['owner', 'admin', 'editor'],
-    'deploy.create': ['owner', 'admin'],
-    'deploy.rollback': ['owner', 'admin'],
-    'settings.manage': ['owner', 'admin'],
-};
 
 export const requireRole = (...roles) => (req, res, next) => {
     const role = req.user?.role || req.userRole;

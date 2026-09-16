@@ -4,6 +4,7 @@ import Website from '../models/Website.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import { ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
 
 const router = express.Router();
 const activeDeployments = new Map();
@@ -51,8 +52,8 @@ router.post('/', auth, requirePermission('deploy.create'), async (req, res) => {
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
             tenant: req.tenantId,
-            action: 'deploy.create',
-            entityType: 'deployment',
+            action: ACTIVITY_ACTION.DEPLOY_CREATE,
+            entityType: ENTITY_TYPE.DEPLOYMENT,
             entityId: deployment._id,
             details: { websiteName: website.name, version: website.currentVersion, environment },
             ipAddress: req.ip,

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { fetchCurrentUser, fetchWebsites, fetchPages, deployWebsite, removePageById } from '../services/api';
+import { fetchCurrentUser, fetchWebsites, fetchPages, deployWebsite, removePageById, modifyWebsite } from '../services/api';
 import { ArrowLeft, Globe, Paintbrush, Rocket } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 export default function WebsiteDetailPage() {
     const navigate = useNavigate();
@@ -13,6 +14,8 @@ export default function WebsiteDetailPage() {
     const [activeTab, setActiveTab] = useState('pages');
     const [deploying, setDeploying] = useState(false);
     const [showAddPagePrompt, setShowAddPagePrompt] = useState(false);
+    const [settingsForm, setSettingsForm] = useState({ name: '', favicon: '', language: 'en' });
+    const [savingSettings, setSavingSettings] = useState(false);
 
     useEffect(() => { loadData(); }, [id]);
 
@@ -22,6 +25,14 @@ export default function WebsiteDetailPage() {
         const p = await fetchPages(id);
         const currentWebsite = w.websites?.find(s => s.id === id);
         const fetchedPages = p.pages || [];
+
+        if (currentWebsite) {
+            setSettingsForm({
+                name: currentWebsite.name || '',
+                favicon: currentWebsite.settings?.favicon || '',
+                language: currentWebsite.settings?.language || 'en',
+            });
+        }
 
         const pagesForView = fetchedPages.length > 0
             ? fetchedPages
@@ -57,6 +68,30 @@ export default function WebsiteDetailPage() {
             return;
         }
         await loadData();
+    }
+
+    async function handleSaveSettings(e) {
+        e.preventDefault();
+        if (!settingsForm.name.trim()) {
+            toast.error('Website name cannot be empty');
+            return;
+        }
+        setSavingSettings(true);
+        const res = await modifyWebsite(id, {
+            name: settingsForm.name.trim(),
+            settings: {
+                ...(website.settings || {}),
+                favicon: settingsForm.favicon,
+                language: settingsForm.language,
+            },
+        });
+        setSavingSettings(false);
+        if (res.ok && res.website) {
+            setWebsite(res.website);
+            toast.success('Website settings saved');
+        } else {
+            toast.error(res.error || 'Failed to save settings');
+        }
     }
 
     function openAddPagePrompt() {
@@ -141,23 +176,51 @@ export default function WebsiteDetailPage() {
             {activeTab === 'settings' && (
                 <div className="card" style={{ maxWidth: 600, padding: 32, borderRadius: 'var(--radius-subtle)' }}>
                     <h3 style={{ fontSize: 16, fontWeight: 700, marginBottom: 24, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Website Settings</h3>
-                    <div style={{ marginBottom: 24 }}>
-                        <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Website Name</label>
-                        <input className="input" defaultValue={website.name} style={{ width: '100%' }} />
-                    </div>
-                    <div style={{ marginBottom: 24 }}>
-                        <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Favicon</label>
-                        <input className="input" defaultValue={website.settings?.favicon || ''} style={{ width: '100%' }} />
-                    </div>
-                    <div style={{ marginBottom: 32 }}>
-                        <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Language</label>
-                        <select className="input" defaultValue={website.settings?.language || 'en'} style={{ width: '100%' }}>
-                            <option value="en">English</option>
-                            <option value="es">Spanish</option>
-                            <option value="fr">French</option>
-                        </select>
-                    </div>
-                    <button className="btn btn-primary mono" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Save Settings</button>
+                    <form onSubmit={handleSaveSettings}>
+                        <div style={{ marginBottom: 24 }}>
+                            <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Website Name</label>
+                            <input
+                                className="input"
+                                value={settingsForm.name}
+                                onChange={e => setSettingsForm({ ...settingsForm, name: e.target.value })}
+                                required
+                                disabled={savingSettings}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: 24 }}>
+                            <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Favicon</label>
+                            <input
+                                className="input"
+                                value={settingsForm.favicon}
+                                onChange={e => setSettingsForm({ ...settingsForm, favicon: e.target.value })}
+                                disabled={savingSettings}
+                                style={{ width: '100%' }}
+                            />
+                        </div>
+                        <div style={{ marginBottom: 32 }}>
+                            <label className="mono" style={{ display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Language</label>
+                            <select
+                                className="input"
+                                value={settingsForm.language}
+                                onChange={e => setSettingsForm({ ...settingsForm, language: e.target.value })}
+                                disabled={savingSettings}
+                                style={{ width: '100%' }}
+                            >
+                                <option value="en">English</option>
+                                <option value="es">Spanish</option>
+                                <option value="fr">French</option>
+                            </select>
+                        </div>
+                        <button
+                            type="submit"
+                            className="btn btn-primary mono"
+                            disabled={savingSettings || !settingsForm.name.trim()}
+                            style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}
+                        >
+                            {savingSettings ? 'Saving...' : 'Save Settings'}
+                        </button>
+                    </form>
                 </div>
             )}
 

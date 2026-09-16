@@ -5,6 +5,7 @@ import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission, getPermissions } from '../middleware/rbac.js';
 import { normalizeEmail, normalizeName } from '../utility/normalize.js';
+import { ROLES, USER_STATUS, ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
 
 const router = express.Router();
 
@@ -33,16 +34,16 @@ router.post('/invite', auth, requirePermission('team.invite'), async (req, res) 
             name: name ? normalizeName(name) : normalizedEmail.split('@')[0],
             email: normalizedEmail,
             password: 'invited_' + Date.now(),
-            role: role || 'editor',
+            role: role || ROLES.EDITOR,
             tenantId: req.tenantId,
-            status: 'invited',
+            status: USER_STATUS.INVITED,
         });
 
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
             tenant: req.tenantId,
-            action: 'team.invite',
-            entityType: 'user',
+            action: ACTIVITY_ACTION.TEAM_INVITE,
+            entityType: ENTITY_TYPE.USER,
             entityId: user._id,
             details: { invitedEmail: email, role },
             ipAddress: req.ip,

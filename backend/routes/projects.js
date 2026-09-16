@@ -4,6 +4,7 @@ import Branding from '../models/Branding.js';
 import VersionHistory from '../models/VersionHistory.js';
 import { verifyToken, checkTenantAccess, requireEditor } from '../middleware/auth.js';
 import { generateWithAISDK } from '../services/ai.js';
+import { ADMIN_ROLES, ROLES } from '../config/constants.js';
 
 const router = Router();
 
@@ -56,7 +57,7 @@ router.get('/:tenantId/:projectId', verifyToken, checkTenantAccess, async (req, 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
 
     // Users can only view their own projects, admins can view all
-    if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+    if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -80,7 +81,7 @@ router.put('/:tenantId/:projectId', verifyToken, checkTenantAccess, async (req, 
 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
 
-    if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+    if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -109,7 +110,7 @@ router.delete('/:tenantId/:projectId', verifyToken, checkTenantAccess, async (re
 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
 
-    if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+    if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -141,7 +142,7 @@ router.post('/:tenantId/:projectId/generate', verifyToken, checkTenantAccess, re
 
     // Any user can generate (owner or not)
     // But they can only generate for their own projects unless admin
-    if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+    if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -227,7 +228,7 @@ router.get('/:tenantId/:projectId/versions', verifyToken, checkTenantAccess, asy
 
     if (!project) return res.status(404).json({ error: 'Project not found.' });
 
-    if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+    if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
       return res.status(403).json({ error: 'Access denied.' });
     }
 
@@ -258,7 +259,7 @@ router.put(
 
       if (!project) return res.status(404).json({ error: 'Project not found.' });
 
-      if (req.userRole !== 'admin' && project.userId.toString() !== req.userId) {
+      if (!ADMIN_ROLES.includes(req.userRole) && project.userId.toString() !== req.userId) {
         return res.status(403).json({ error: 'Access denied.' });
       }
 

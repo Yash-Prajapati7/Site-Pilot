@@ -1,5 +1,6 @@
 {
-  "name": "tenantflow-ai",
+  "name": "site-pilot",
+  "author": "Yash Prajapati",
   "version": "1.0.0",
   "description": "AI-Powered Multi-Tenant Website Builder Platform",
   "private": true,

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import User from '../models/User.js';
 import { verifyToken, checkTenantAccess, requireAdmin } from '../middleware/auth.js';
 import { normalizeEmail, normalizeName } from '../utility/normalize.js';
+import { ALL_ROLES, ROLES, ADMIN_ROLES } from '../config/constants.js';
 
 const router = Router();
 
@@ -32,8 +33,8 @@ router.post('/:tenantId/users', verifyToken, checkTenantAccess, requireAdmin, as
       return res.status(400).json({ error: 'Name, email, and password are required.' });
     }
 
-    if (!['editor', 'admin', 'viewer'].includes(role || 'editor')) {
-      return res.status(400).json({ error: 'Role must be "editor", "viewer", or "admin".' });
+    if (!ALL_ROLES.includes(role || ROLES.EDITOR)) {
+      return res.status(400).json({ error: `Role must be one of: ${ALL_ROLES.join(', ')}.` });
     }
 
     if (password.length < 6) {
@@ -53,7 +54,7 @@ router.post('/:tenantId/users', verifyToken, checkTenantAccess, requireAdmin, as
       email: normalizedEmail,
       password,
       tenantId: req.tenantId,
-      role: role || 'editor',
+      role: role || ROLES.EDITOR,
     });
 
     res.status(201).json({
@@ -95,8 +96,8 @@ router.put('/:tenantId/users/:userId', verifyToken, checkTenantAccess, requireAd
       }
     }
     if (role !== undefined) {
-      if (!['editor', 'admin', 'viewer'].includes(role)) {
-        return res.status(400).json({ error: 'Role must be "editor", "viewer", or "admin".' });
+      if (!ALL_ROLES.includes(role)) {
+        return res.status(400).json({ error: `Role must be one of: ${ALL_ROLES.join(', ')}.` });
       }
       user.role = role;
     }
@@ -127,9 +128,9 @@ router.delete('/:tenantId/users/:userId', verifyToken, checkTenantAccess, requir
 
     if (!user) return res.status(404).json({ error: 'User not found.' });
 
-    // Prevent deleting the last admin
-    if (user.role === 'admin') {
-      const adminCount = await User.countDocuments({ tenantId: req.tenantId, role: 'admin' });
+    // Prevent deleting the last admin/owner
+    if (ADMIN_ROLES.includes(user.role)) {
+      const adminCount = await User.countDocuments({ tenantId: req.tenantId, role: { $in: ADMIN_ROLES } });
       if (adminCount === 1) {
         return res.status(400).json({ error: 'Cannot delete the last admin. Assign another admin first.' });
       }

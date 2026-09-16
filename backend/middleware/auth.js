@@ -1,9 +1,10 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { AUTH_CONSTANTS, ROLES, ROLE_LEVEL, ADMIN_ROLES, USER_STATUS } from '../config/constants.js';
 
 function getToken(req) {
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) return authHeader.split(' ')[1];
+  if (authHeader?.startsWith(AUTH_CONSTANTS.AUTH_HEADER_PREFIX)) return authHeader.split(' ')[1];
   return req.query.token || null;
 }
 
@@ -16,8 +17,8 @@ async function hydrateUser(decoded) {
 export function generateToken(user) {
   const userId = String(user._id);
   const tenantId = String(user.tenantId?._id || user.tenantId || '');
-  const role = user.role || 'editor';
-  return jwt.sign({ id: userId, userId, tenantId, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
+  const role = user.role || ROLES.EDITOR;
+  return jwt.sign({ id: userId, userId, tenantId, role }, process.env.JWT_SECRET, { expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRY });
 }
 
 // Site-pilot style middleware
@@ -28,7 +29,7 @@ export async function auth(req, res, next) {
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await hydrateUser(decoded);
-    if (!user || user.status === 'suspended') {
+    if (!user || user.status === USER_STATUS.SUSPENDED) {
       return res.status(401).json({ success: false, error: 'Invalid or expired token' });
     }
 
@@ -77,12 +78,9 @@ export async function verifyToken(req, res, next) {
   }
 }
 
-// Role hierarchy: admin > editor > viewer
-const ROLE_LEVEL = { admin: 3, editor: 2, viewer: 1 };
-
-// ── Require exact admin role ──────────────────────────────────────────────────
+// ── Require exact admin or owner role ─────────────────────────────────────────
 export function requireAdmin(req, res, next) {
-  if (req.userRole !== 'admin') {
+  if (!ADMIN_ROLES.includes(req.userRole)) {
     return res.status(403).json({ error: 'Admin role required.' });
   }
   next();
@@ -91,13 +89,13 @@ export function requireAdmin(req, res, next) {
 // ── Require admin or editor (viewers cannot mutate) ──────────────────────────
 export function requireEditor(req, res, next) {
   const level = ROLE_LEVEL[req.userRole] || 0;
-  if (level < ROLE_LEVEL.editor) {
+  if (level < ROLE_LEVEL[ROLES.EDITOR]) {
     return res.status(403).json({ error: 'Editor or Admin role required.' });
   }
   next();
 }
 
-// ── Any authenticated tenant member is allowed (all 3 roles) ──────────────────
+// ── Any authenticated tenant member is allowed (all valid roles) ─────────────
 export function requireMember(req, res, next) {
   if (!ROLE_LEVEL[req.userRole]) {
     return res.status(403).json({ error: 'Valid role required.' });

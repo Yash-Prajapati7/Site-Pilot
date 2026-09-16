@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchCurrentUser, fetchWebsites } from '../services/api';
-import { Globe, FileText, Users, Cpu, Palette, Rocket, User, Zap, ArrowRight } from 'lucide-react';
+import { Globe, FileText, Users, Cpu, Palette, Rocket, User, Zap, ArrowRight, Pencil } from 'lucide-react';
+import RenameWebsiteModal from '../components/RenameWebsiteModal';
 
 function formatLimit(limit) {
     return limit === -1 ? '∞' : limit;
@@ -16,6 +17,7 @@ export default function DashboardPage() {
     const [user, setUser] = useState(null);
     const [websites, setWebsites] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [renamingSite, setRenamingSite] = useState(null);
 
     useEffect(() => {
         async function load() {
@@ -47,6 +49,8 @@ export default function DashboardPage() {
         { icon: <Cpu size={14} />, action: 'AI content generated', target: 'Landing page', time: '3h ago' },
         { icon: <User size={14} />, action: 'Team member invited', target: 'developer@team.com', time: '1d ago' },
     ];
+
+    const canEdit = ['owner', 'admin', 'editor'].includes(user.role);
 
     return (
         <div className="animate-slide-up">
@@ -91,7 +95,31 @@ export default function DashboardPage() {
                                         <div className="mono" style={{ fontSize: 11, color: 'var(--text-muted)' }}>{site.domain?.subdomain} · {site.pageCount || 0} pages</div>
                                     </div>
                                 </div>
-                                <span className="badge mono" style={{ textTransform: 'uppercase' }}>{site.status}</span>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                    {canEdit && (
+                                        <button
+                                            type="button"
+                                            className="btn btn-ghost btn-sm mono"
+                                            style={{
+                                                padding: '6px 10px',
+                                                fontSize: 11,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 5,
+                                                textTransform: 'uppercase',
+                                            }}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                e.stopPropagation();
+                                                setRenamingSite(site);
+                                            }}
+                                            title="Rename website"
+                                        >
+                                            <Pencil size={12} /> Rename
+                                        </button>
+                                    )}
+                                    <span className="badge mono" style={{ textTransform: 'uppercase' }}>{site.status}</span>
+                                </div>
                             </Link>
                         ))}
                         {websites.length === 0 && (
@@ -147,6 +175,15 @@ export default function DashboardPage() {
                     </div>
                 </div>
             </div>
+
+            <RenameWebsiteModal
+                isOpen={Boolean(renamingSite)}
+                website={renamingSite}
+                onClose={() => setRenamingSite(null)}
+                onSuccess={(updatedSite) => {
+                    setWebsites(prev => prev.map(w => w.id === updatedSite.id ? { ...w, ...updatedSite } : w));
+                }}
+            />
         </div>
     );
 }

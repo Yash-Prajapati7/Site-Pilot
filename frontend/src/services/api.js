@@ -138,7 +138,7 @@ function normalizeAuthenticatedUser(payload) {
 function normalizeProject(proj) {
   if (!proj) return null;
   const id = String(proj._id || proj.id);
-  const slug = proj.name?.toLowerCase().replace(/\s+/g, '-') || id;
+  const slug = proj.slug || proj.name?.toLowerCase().replace(/\s+/g, '-') || id;
   // If we have generatedHTML, construct a fake activeVersion to match Builder's expectations
   const hasHTML = proj.generatedHTML && proj.generatedHTML.length > 0;
   return {

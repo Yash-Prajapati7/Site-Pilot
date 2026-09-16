@@ -8,6 +8,7 @@ import Branding from '../models/Branding.js';
 import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
+import { ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
 
 const router = express.Router();
 
@@ -139,8 +140,8 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
             tenant: req.tenantId,
-            action: 'ai.generate',
-            entityType: 'website',
+            action: ACTIVITY_ACTION.AI_GENERATE,
+            entityType: ENTITY_TYPE.WEBSITE,
             entityId: websiteId,
             details: { prompt: prompt.substring(0, 100), version: versionNumber, htmlLength: fullHTML.length },
             ipAddress: req.ip,

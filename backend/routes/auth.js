@@ -6,6 +6,7 @@ import Branding from '../models/Branding.js';
 import { verifyToken } from '../middleware/auth.js';
 import { getPlanConfig, getPlanLimits, hasPlanLimitMismatch, isValidPlan } from '../config/plans.js';
 import { normalizeEmail, normalizeSlug, normalizeName } from '../utility/normalize.js';
+import { AUTH_CONSTANTS, JS_TYPES, ROLES, DEFAULT_PLAN } from '../config/constants.js';
 
 const router = Router();
 
@@ -20,13 +21,13 @@ const signToken = (user) =>
       role:     user.role,
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: AUTH_CONSTANTS.TOKEN_EXPIRY }
   );
 
 async function ensureTenantPlanLimits(tenantDoc) {
   if (!tenantDoc) return null;
   let doc = tenantDoc;
-  if (typeof doc.save !== 'function') {
+  if (typeof doc.save !== JS_TYPES.FUNCTION) {
     doc = await Tenant.findById(doc._id || doc);
     if (!doc) return null;
   }
@@ -53,7 +54,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Password must be at least 6 characters.' });
     }
 
-    const selectedPlan = isValidPlan(plan) ? plan : 'free';
+    const selectedPlan = isValidPlan(plan) ? plan : DEFAULT_PLAN;
     const normalizedEmail = normalizeEmail(ownerEmail);
     const normalizedSlug = normalizeSlug(tenantSlug);
     const cleanTenantName = normalizeName(tenantName);
@@ -78,13 +79,13 @@ router.post('/register', async (req, res) => {
       plan: selectedPlan,
     });
 
-    // Create owner user (admin role)
+    // Create owner user (owner role)
     const user = await User.create({
       name: cleanOwnerName,
       email: normalizedEmail,
       password,
       tenantId: tenant._id,
-      role: 'admin',
+      role: ROLES.OWNER,
     });
 
     // Update tenant with ownerUserId

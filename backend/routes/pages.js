@@ -5,6 +5,7 @@ import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { normalizeSlug, normalizeName } from '../utility/normalize.js';
+import { ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
 
 const router = express.Router();
 
@@ -38,7 +39,7 @@ router.post('/', auth, requirePermission('page.create'), async (req, res) => {
 
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
-            tenant: req.tenantId, action: 'page.create', entityType: 'page', entityId: page._id,
+            tenant: req.tenantId, action: ACTIVITY_ACTION.PAGE_CREATE, entityType: ENTITY_TYPE.PAGE, entityId: page._id,
             details: { title, websiteId }, ipAddress: req.ip,
         });
 
@@ -74,7 +75,7 @@ router.put('/:id', auth, requirePermission('page.edit'), async (req, res) => {
 
     await ActivityLog.create({
         user: { id: req.user._id, name: req.user.name, email: req.user.email },
-        tenant: req.tenantId, action: 'page.update', entityType: 'page', entityId: page._id,
+        tenant: req.tenantId, action: ACTIVITY_ACTION.PAGE_UPDATE, entityType: ENTITY_TYPE.PAGE, entityId: page._id,
         details: { title: page.title, version: page.version }, ipAddress: req.ip,
     });
 

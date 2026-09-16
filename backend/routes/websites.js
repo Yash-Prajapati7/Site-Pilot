@@ -5,6 +5,7 @@ import ActivityLog from '../models/ActivityLog.js';
 import { auth } from '../middleware/auth.js';
 import { requirePermission } from '../middleware/rbac.js';
 import { normalizeSlug, normalizeName } from '../utility/normalize.js';
+import { JS_TYPES, ENTITY_TYPE, ACTIVITY_ACTION } from '../config/constants.js';
 
 const router = express.Router();
 
@@ -45,8 +46,8 @@ router.post('/', auth, requirePermission('website.create'), async (req, res) => 
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
             tenant: req.tenantId,
-            action: 'website.create',
-            entityType: 'website',
+            action: ACTIVITY_ACTION.WEBSITE_CREATE,
+            entityType: ENTITY_TYPE.WEBSITE,
             entityId: website._id,
             details: { name, businessType },
             ipAddress: req.ip,
@@ -59,13 +60,60 @@ router.post('/', auth, requirePermission('website.create'), async (req, res) => 
 });
 
 router.put('/:id', auth, requirePermission('website.edit'), async (req, res) => {
-    const website = await Website.findOneAndUpdate(
-        { _id: req.params.id, tenant: req.tenantId },
-        { $set: req.body },
-        { new: true }
-    );
-    if (!website) return res.status(404).json({ success: false, error: 'Website not found' });
-    res.json({ success: true, data: website });
+    try {
+        const website = await Website.findOne({ _id: req.params.id, tenant: req.tenantId });
+        if (!website) return res.status(404).json({ success: false, error: 'Website not found' });
+
+        const previousName = website.name;
+        const previousSlug = website.slug;
+
+        if (req.body.name !== undefined) {
+            const rawName = typeof req.body.name === JS_TYPES.STRING ? req.body.name.trim() : '';
+            if (!rawName) {
+                return res.status(400).json({ success: false, error: 'Website name cannot be empty' });
+            }
+            const cleanName = normalizeName(rawName);
+            website.name = cleanName;
+
+            // Default behaviour: update URL slug to match the new site name
+            const baseSlug = normalizeSlug(cleanName) || 'website';
+            let slugCandidate = baseSlug;
+            let count = 1;
+            while (await Website.findOne({ tenant: req.tenantId, slug: slugCandidate, _id: { $ne: website._id } })) {
+                slugCandidate = `${baseSlug}-${count}`;
+                count++;
+            }
+            website.slug = slugCandidate;
+        }
+
+        if (req.body.description !== undefined) website.description = req.body.description;
+        if (req.body.businessType !== undefined) website.businessType = req.body.businessType;
+        if (req.body.status !== undefined) website.status = req.body.status;
+        if (req.body.domain !== undefined) website.domain = req.body.domain;
+        if (req.body.settings !== undefined) website.settings = { ...(website.settings || {}), ...req.body.settings };
+        if (req.body.seo !== undefined) website.seo = { ...(website.seo || {}), ...req.body.seo };
+
+        await website.save();
+
+        await ActivityLog.create({
+            user: { id: req.user._id, name: req.user.name, email: req.user.email },
+            tenant: req.tenantId,
+            action: ACTIVITY_ACTION.WEBSITE_UPDATE,
+            entityType: ENTITY_TYPE.WEBSITE,
+            entityId: website._id,
+            details: {
+                name: website.name,
+                slug: website.slug,
+                previousName,
+                previousSlug,
+            },
+            ipAddress: req.ip,
+        });
+
+        res.json({ success: true, data: website });
+    } catch (err) {
+        res.status(500).json({ success: false, error: err.message || 'Failed to update website' });
+    }
 });
 
 router.delete('/:id', auth, requirePermission('website.delete'), async (req, res) => {
@@ -146,8 +194,8 @@ router.post('/:id/versions/:version/restore', auth, requirePermission('website.e
         await ActivityLog.create({
             user: { id: req.user._id, name: req.user.name, email: req.user.email },
             tenant: req.tenantId,
-            action: 'website.restoreVersion',
-            entityType: 'website',
+            action: ACTIVITY_ACTION.WEBSITE_RESTORE_VERSION,
+            entityType: ENTITY_TYPE.WEBSITE,
             entityId: website._id,
             details: { restoredVersion: targetVersion, newVersion: website.currentVersion },
             ipAddress: req.ip,

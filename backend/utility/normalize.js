@@ -1,3 +1,5 @@
+import { JS_TYPES } from '../config/constants.js';
+
 /**
  * normalize.js — Centralized normalization utilities
  */
@@ -8,7 +10,7 @@
  * @returns {string}
  */
 export function normalizeEmail(email) {
-  if (!email || typeof email !== 'string') return '';
+  if (!email || typeof email !== JS_TYPES.STRING) return '';
   return email.trim().toLowerCase();
 }
 
@@ -18,7 +20,7 @@ export function normalizeEmail(email) {
  * @returns {string}
  */
 export function normalizeSlug(slug) {
-  if (!slug || typeof slug !== 'string') return '';
+  if (!slug || typeof slug !== JS_TYPES.STRING) return '';
   return slug
     .trim()
     .toLowerCase()
@@ -32,7 +34,7 @@ export function normalizeSlug(slug) {
  * @returns {string}
  */
 export function normalizeName(name) {
-  if (!name || typeof name !== 'string') return '';
+  if (!name || typeof name !== JS_TYPES.STRING) return '';
   return name.trim().replace(/\s+/g, ' ');
 }
 

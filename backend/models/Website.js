@@ -1,11 +1,12 @@
 import mongoose from 'mongoose';
+import { ALL_CONTENT_STATUSES, CONTENT_STATUS } from '../config/constants.js';
 
 const websiteSchema = new mongoose.Schema({
     name: { type: String, required: true, trim: true },
     slug: { type: String, required: true, lowercase: true },
     tenant: { type: mongoose.Schema.Types.ObjectId, ref: 'Tenant', required: true },
     description: { type: String, default: '' },
-    status: { type: String, enum: ['draft', 'published', 'archived'], default: 'draft' },
+    status: { type: String, enum: ALL_CONTENT_STATUSES, default: CONTENT_STATUS.DRAFT },
     businessType: { type: String, default: 'general' },
     generatedHTML: { type: String, default: '' },
     settings: {

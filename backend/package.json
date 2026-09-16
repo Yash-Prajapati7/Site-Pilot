@@ -1,5 +1,6 @@
 {
   "name": "site-pilot-backend",
+  "author": "Yash Prajapati",
   "version": "1.0.0",
   "description": "Site Pilot AI-Powered Website Builder — Node.js/Express Backend",
   "type": "module",
