@@ -129,6 +129,8 @@ export const ACTIVITY_ACTION = Object.freeze({
   WEBSITE_UPDATE: 'website.update',
   WEBSITE_RESTORE_VERSION: 'website.restoreVersion',
   TEAM_INVITE: 'team.invite',
+  TEAM_CHANGE_ROLE: 'team.changeRole',
+  TEAM_REMOVE: 'team.remove',
   DEPLOY_CREATE: 'deploy.create',
   BILLING_CHANGE_PLAN: 'billing.changePlan',
   AI_GENERATE: 'ai.generate',

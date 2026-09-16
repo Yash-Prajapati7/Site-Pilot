@@ -63,6 +63,17 @@ router.put('/:id/role', auth, requirePermission('team.changeRole'), async (req, 
         { new: true }
     );
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    await ActivityLog.create({
+        user: { id: req.user._id, name: req.user.name, email: req.user.email },
+        tenant: req.tenantId,
+        action: ACTIVITY_ACTION.TEAM_CHANGE_ROLE,
+        entityType: ENTITY_TYPE.USER,
+        entityId: user._id,
+        details: { targetUserId: user._id, email: user.email, newRole: role },
+        ipAddress: req.ip,
+    });
+
     res.json({ success: true, data: user.toJSON() });
 });
 
@@ -72,6 +83,17 @@ router.delete('/:id', auth, requirePermission('team.remove'), async (req, res) =
     }
     const user = await User.findOneAndDelete({ _id: req.params.id, tenantId: req.tenantId });
     if (!user) return res.status(404).json({ success: false, error: 'User not found' });
+
+    await ActivityLog.create({
+        user: { id: req.user._id, name: req.user.name, email: req.user.email },
+        tenant: req.tenantId,
+        action: ACTIVITY_ACTION.TEAM_REMOVE,
+        entityType: ENTITY_TYPE.USER,
+        entityId: user._id,
+        details: { removedUserId: user._id, email: user.email },
+        ipAddress: req.ip,
+    });
+
     res.json({ success: true, message: 'Team member removed' });
 });
 
