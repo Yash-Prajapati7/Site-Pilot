@@ -423,14 +423,21 @@ GET /api/websites/view/portfolio-site HTTP/1.1
 ## AI Generation Endpoints
 
 ### POST /ai/generate
-Generate website HTML using the AI reasoning model. The frontend sends only the clean user prompt and optional design selections; the backend dynamically stitches the system instructions, design system specifications, tenant branding schema, and previous HTML context before invoking the model. The full user prompt is stored without truncation in version history, chat history, and prompt history.
+Generate website HTML using the AI reasoning model. The frontend sends only the clean user prompt and optional design selections; the backend dynamically stitches the system instructions, design system specifications, tenant branding schema, prior conversation turns, and previous HTML context before invoking the model. The full user prompt is stored without truncation in version history, chat history, and prompt history.
+
+#### Multi-Turn Context & Incremental Editing
+- **Initial Generation Mode** (when `previousHtml` is empty): Builds a complete, production-ready website from scratch based on template guidelines and tenant branding.
+- **Incremental Edit Mode** (when `previousHtml` is provided): Automatically switches to incremental editing. The backend formats up to the last 6 chronological user prompts and injects strict preservation directives:
+  - Preserves established company name, tagline, and copy (overrides generic naming rules).
+  - Preserves established `:root` custom properties, surface/canvas lightness, and button styles.
+  - Suppresses tenant default dark theme re-injection if the previous version established a custom or template palette.
 
 **Permissions:** `ai.generate` (`owner`, `admin`, `editor`, `developer`)
 
 **Request:**
 ```json
 {
-  "prompt": "Build a modern SaaS landing page with pricing section and testimonials",
+  "prompt": "Add a little more wave svg's so that the landing page looks awesome",
   "websiteId": "67a1b2c3d4e5f6g7h8i9j0k3",
   "templateId": "cohere",
   "mode": "prebuilt",
@@ -440,7 +447,10 @@ Generate website HTML using the AI reasoning model. The frontend sends only the 
     "features": "features-1",
     "footer": "footer-1"
   },
-  "previousHtml": "<!DOCTYPE html><html>...</html>"
+  "previousHtml": "<!DOCTYPE html><html>...</html>",
+  "chatHistory": [
+    "Develop me a modern landing page for my site Melody Music. Use the color scheme of the templates and completely ignore my brand scheme."
+  ]
 }
 ```
 
@@ -451,7 +461,8 @@ Generate website HTML using the AI reasoning model. The frontend sends only the 
 | `templateId` | String | No | Prebuilt design system template ID (`cohere`, `elevenlabs`, `professional`, `casual`, `funky`, `elegant`, `playful`, `lovable`, `replicate`). If omitted, reuses existing website template or applies brand theme. |
 | `mode` | String | No | Generation mode: `prebuilt` (default), `custom`, or `plain`. |
 | `selections` | Object | No | Custom component variant selections (used when `mode` is `custom`). |
-| `previousHtml` | String | No | Previous HTML code for styling continuity during iterative edits. |
+| `previousHtml` | String | No | Previous HTML code for styling continuity during iterative edits. Triggers Incremental Edit Mode. |
+| `chatHistory` | Array | No | Prior conversation turns/prompts (strings or objects with `content` / `prompt`) for multi-turn context (last 6 turns utilized). If omitted and `websiteId` is provided, automatically loaded from the website record. |
 
 **Response (200):**
 ```json
