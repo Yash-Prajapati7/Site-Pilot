@@ -27,7 +27,7 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             return res.status(403).json({ success: false, error: 'AI generation limit reached. Upgrade your plan.' });
         }
 
-        const { prompt, websiteId, previousHtml, templateId, mode, selections } = req.body;
+        const { prompt, websiteId, previousHtml, templateId, mode, selections, chatHistory } = req.body;
         if (!prompt) return res.status(400).json({ success: false, error: 'Prompt is required' });
 
         console.log(`\n------------------------------------------------------`);
@@ -44,6 +44,21 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
         if (websiteId) {
             website = await Website.findOne({ _id: websiteId, tenant: req.tenantId });
             if (website && !existingHTML) existingHTML = website.generatedHTML || '';
+        }
+
+        // Build chronological conversation history (up to last 6 turns)
+        let conversationHistory = [];
+        if (Array.isArray(chatHistory) && chatHistory.length > 0) {
+            conversationHistory = chatHistory;
+        } else if (website) {
+            if (Array.isArray(website.promptHistory) && website.promptHistory.length > 0) {
+                conversationHistory = website.promptHistory.map(p => p.prompt).filter(Boolean);
+            } else if (Array.isArray(website.chatHistory) && website.chatHistory.length > 0) {
+                conversationHistory = website.chatHistory
+                    .filter(c => c.role === 'user')
+                    .map(c => c.content)
+                    .filter(Boolean);
+            }
         }
 
         const effectiveTemplateId = templateId || website?.templateId || null;
@@ -71,6 +86,9 @@ router.post('/generate', auth, requirePermission('ai.generate'), async (req, res
             selections,
             branding,
             previousHtml: existingHTML,
+            conversationHistory,
+            websiteName: website?.name || branding.companyName || '',
+            businessType: website?.businessType || '',
         });
         const fullHTML = cleanGeneratedHTML(rawHTML);
 

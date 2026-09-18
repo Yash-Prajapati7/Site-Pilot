@@ -330,10 +330,19 @@ export default function BuilderPage() {
         try {
             // Call the real backend → Vercel AI SDK, pass previous version for styling consistency
             setPipeline(prev => ({ ...prev, frontend: { ...prev.frontend, status: 'generating' } }));
+
+            // Gather recent user prompt history for multi-turn preservation (last 6 turns)
+            const priorPrompts = [
+                ...messages.filter(m => m.role === 'user').map(m => m.content),
+                ...history.map(h => h.prompt)
+            ].filter(Boolean);
+            const uniquePrompts = priorPrompts.filter((p, i, arr) => i === 0 || p !== arr[i - 1]);
+
             const templateOptions = {
                 templateId: activePayload?.templateId,
                 mode: activePayload?.mode,
                 selections: activePayload?.selections,
+                chatHistory: uniquePrompts.slice(-6),
             };
             const result = await generateAIWebsite(promptToSend, history, id, overrideHTML || generatedHTML, templateOptions);
 

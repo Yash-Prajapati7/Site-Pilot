@@ -380,6 +380,7 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
   if (!projectId) return { ok: false, error: 'Project ID is required for generation' };
 
   try {
+    const chatHistoryToSend = options.chatHistory || history;
     const { data: resData } = await apiClient.post(
       `/ai/generate`,
       {
@@ -389,6 +390,7 @@ export async function generateAIWebsite(prompt, history = [], projectId, previou
         templateId: options.templateId,
         mode: options.mode,
         selections: options.selections,
+        chatHistory: chatHistoryToSend,
       },
       { timeout: 300000 } // 5 mins dedicated timeout for deep reasoning generation
     );

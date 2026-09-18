@@ -28,6 +28,15 @@ export async function generateWithAISDK(promptInput, branding = {}, previousHtml
     }
   }
 
+  const isEdit = Boolean(
+    (typeof promptInput === JS_TYPES.OBJECT && promptInput?.previousHtml && promptInput.previousHtml.length > 100) ||
+    (typeof previousHtml === JS_TYPES.STRING && previousHtml.length > 100)
+  );
+  const turnsCount = typeof promptInput === JS_TYPES.OBJECT && Array.isArray(promptInput?.conversationHistory)
+    ? promptInput.conversationHistory.length
+    : 0;
+
+  console.log(`[AI_SDK] Mode: ${isEdit ? `INCREMENTAL_EDIT (${turnsCount} prior turns)` : 'INITIAL_CREATION'}`);
   console.log(`[AI_SDK] Calling AI model ${AI_CONFIG.MODEL} (${AI_CONFIG.PROVIDER}) with ${AI_CONFIG.REASONING} reasoning...`);
   const startTime = Date.now();
   try {
